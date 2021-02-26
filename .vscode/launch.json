@@ -5,6 +5,7 @@
     "version": "0.2.0",
     "configurations": [
 
+
         {
             "name": "Aktuelle Datei",
             "type": "python",
@@ -17,6 +18,13 @@
             "type": "python",
             "request": "launch",
             "program": "C:/Users/Johannes/Documents/TUM/5.MasterThesis/2D_Beam/run_model.py",
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "run tests",
+            "type": "python",
+            "request": "launch",
+            "program": "C:/Users/Johannes/Documents/TUM/5.MasterThesis/2D_Beam/tests.py",
             "console": "integratedTerminal"
         }
     ]

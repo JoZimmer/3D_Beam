@@ -2,7 +2,7 @@ import numpy as np
 
 class BernoulliElement(object):
 
-    def __init__(self, parameters, elem_length ,elem_id, is_shear, decouple):
+    def __init__(self, parameters, elem_length ,elem_id, is_shear, decouple, optimize = False):
 
         self.parameters = parameters
         self.index = elem_id
@@ -16,7 +16,11 @@ class BernoulliElement(object):
 
         self.Iy = parameters['Iy']
         self.number_of_nodes = parameters['nodes_per_elem']
-      
+
+        self.k_yg = 1e-10 #default non zero
+        self.k_gg = 1. #default non zero
+            
+        self.num_zero = 1e-5
     
     def get_stiffness_matrix(self):
 
@@ -31,11 +35,13 @@ class BernoulliElement(object):
         k_yg = 6.0 * EI / self.L**2
 
         if self.decouple:
-            k_yg = 0.0
+            k_yg = self.k_yg 
             if self.is_shear:
-                k_gg_11 = 0.0
-                k_gg_12 = 0.0  
-
+                # alle einträge die mit g zu tun haben 0
+                # NOTE: hier erst nur k_gg_11 um es bei einem 3D optimieurngs problem zu lassen 
+                k_gg_11 = self.k_gg
+                #k_gg_12 = self.num_zero
+                
         # Mueller StrcutDyn Tutorial page 122
         k = np.array([[k_yy_11, -k_yg, k_yy_12, -k_yg],
                       [-k_yg, k_gg_11, k_yg, k_gg_12],
@@ -45,26 +51,29 @@ class BernoulliElement(object):
 
     def get_mass_matrix(self):
         # Mueller StrcutDyn Tutorial page 122
-        m_yy_11 = self.rho * self.L * 13/35
-        m_yy_12 = self.rho * self.L * 9/70
+        m_yy_11 = self.rho * self.L * 13./35.
+        m_yy_12 = self.rho * self.L * 9./70.
 
-        m_gg_11 = self.rho * self.L**3 /105
-        m_gg_12 = self.rho * self.L**3 /140
+        m_gg_11 = self.rho * self.L**3 /105.
+        m_gg_12 = self.rho * self.L**3 /140.
 
-        m_yg_11 = self.rho * self.L**3 * 11/210
-        m_yg_12 = self.rho * self.L**3 * 13/420
+        m_yg_11 = self.rho * (self.L**2) * 11./210.
+        m_yg_12 = self.rho * (self.L**2) * 13./420.
 
-        if self.decouple:
-            m_yg_11 = 0.0
-            m_yg_12 = 0.0
-            if self.is_shear:
-                m_gg_11 = 0.0
-                m_gg_12 = 0.0
+        # if self.decouple:
+        #     m_yg_11 = self.num_zero
+        #     m_yg_12 = self.num_zero
+        #     # m_yy_12 = self.num_zero
+        #     # m_gg_12 = self.num_zero
+        #     if self.is_shear:
+        #         m_gg_11 = self.num_zero
+        #         #m_gg_12 = self.num_zero
+                
             
         m = np.array([[m_yy_11, -m_yg_11, m_yy_12, m_yg_12], 
                       [-m_yg_11, m_gg_11, -m_yg_12, -m_gg_12],
-                      [m_yg_12, -m_gg_12, m_yy_11, m_yg_11],
-                      [m_yg_12, -m_gg_12, m_yg_12, m_gg_11 ]])
+                      [m_yy_12, -m_yg_12, m_yy_11, m_yg_11],
+                      [m_yg_12, -m_gg_12, m_yg_11, m_gg_11 ]])
        
         return m 
 
