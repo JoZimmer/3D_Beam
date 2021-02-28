@@ -377,9 +377,12 @@ class BeamModel(object):
 
     # eigenform 
 
-    def adjust_k_yg_for_eigenform(self, mode_id, use_intermediate_corrections = True):
+    def adjust_k_yg_for_eigenform(self, mode_id, use_intermediate_corrections = False):
         '''
-        if use intermediate corrections the mass is adjusted to mathc the target freuqnecy of the current mode
+        if "use_intermediate_corrections" = true:
+            - the mass is adjusted to match the target freuqnecy of the current mode
+            - if then the eigenform does not match anymore the k_yg entry is adjusted element wise
+            -> this does not work like this
         '''
         # firstly for now the 1st mode shape
         if mode_id < 3:
@@ -402,13 +405,9 @@ class BeamModel(object):
                 current_freq = round(self.eigenfrequencies[mode_id],3)
                 target_round = round(utilities.analytic_eigenfrequencies(self)[mode_id], 3) 
                 if round(target_freq, 3) != current_freq:
-                    #self.adjust_y_stiffness_for_freq(targe) 
-                    # print ('frequency error:', round(target_freq -self.eigenfrequencies[mode_id],3))
-                    # print ('adjusting Iy for target frequency')
-                    #self.adjust_Iy_for_target_freq(mode_id)
                     self.adjust_mass_density_for_target_freq(mode_id)
 
-                # check if eigenform still fits and recursively adjust:
+                # check if eigenform still fits::
                 current_norm = np.linalg.norm(target - utilities.check_and_change_sign(self.eigenmodes['y'][mode_id]))
                 self.norm_track[mode_id].append(current_norm)
                 # NOTE: rounding digits must be checked what makes sence
@@ -429,9 +428,6 @@ class BeamModel(object):
             self.init_guess = minimization_result_k_yg.x[0]
             self.adjust_k_yg_for_eigenform(next_mode)
             
-            # print ('result for YG:', minimization_result.x[0])
-            # print('\noptimizing next mode:')
-            #print ('error:', 60000 - minimization_result.x[0])
 
         else: 
             # if i turned 3 the init guess is the last result
