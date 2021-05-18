@@ -78,7 +78,7 @@ if optimize:
 postprocess.plot_static_result(beam)
 postprocess.plot_eigenmodes(beam, fit = False, analytic=True)
 
-# OBJECTIVE FUNCTION: plot is here at the and since it changes properties of the beam directly
+# OBJECTIVE FUNCTION: plot is here at the end since it changes properties of the beam directly
 if optimize: 
     if optimization_parameters['plot_opt_func']:
         if optimization_parameters['optimization_target'] == 'frequency_shear':
