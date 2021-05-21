@@ -32,7 +32,7 @@ params = {'text.usetex': True,
           'text.latex.unicode': True,
           'figure.titlesize': 10,
           'figure.figsize': (width, height),
-          'figure.dpi': 300,
+          'figure.dpi': 80,
           'axes.titlesize': 10,
           'axes.labelsize': 10,
           'axes.grid': 'on',
@@ -55,19 +55,10 @@ params = {'text.usetex': True,
           }
 #plt.rcParams.update(params)
 
+# # 2D 
 
-def plot_static_result(beam_model, load_type = 'single' ,analytic = True):
-    fig, ax = plt.subplots()
-
-    if analytic:
-        w_analytic = utilities.analytic_function_static_disp(beam_model.parameters, np.arange(0,beam_model.parameters['lx_total_beam']+1))
-        ax.plot(np.arange(0,len(w_analytic)),
-                    w_analytic,
-                    label = 'analytic',
-                    color = 'r',
-                    linestyle = '--')
-        print ('w_max ist analytic: ', w_analytic[-1])
-
+def plot_static_result(beam_model, load_type = 'single' ,dofs_to_plot = ['y'], analytic = True):
+    fig, ax = plt.subplots(figsize=(5,2), num='static results')
 
     ax.plot(beam_model.nodal_coordinates['x0'],
             beam_model.nodal_coordinates['y0'],
@@ -75,28 +66,39 @@ def plot_static_result(beam_model, load_type = 'single' ,analytic = True):
             color = 'grey',
             linestyle = '--')
 
-    ax.plot(beam_model.nodal_coordinates['x0'],
-            beam_model.static_deformation['y'],
-            label = 'static displacement in y',
-            color = 'tab:blue')
+    print ('\nStatic results:')
+    if analytic:
+        w_analytic = utilities.analytic_function_static_disp(beam_model.parameters, np.arange(0,beam_model.parameters['lx_total_beam']+1))
+        ax.plot(np.arange(0,len(w_analytic)),
+                    w_analytic,
+                    label = 'analytic',
+                    color = 'k',
+                    linestyle = '--')
+        print ('  w_max ist analytic: ', w_analytic[-1])
+
+    for d_i, dof in enumerate(dofs_to_plot):
+        ax.plot(beam_model.nodal_coordinates['x0'],
+                beam_model.static_deformation[dof],
+                label = 'final ' + dof + ' disp; tip: ' + '{0:.2e}'.format(beam_model.static_deformation[dof][-1][0]),
+                color = COLORS[d_i])
             
-    print ('w_max ist beam: ', beam_model.static_deformation['y'][-1])
+    print ('  w_max ist beam:     ', beam_model.static_deformation['y'][-1][0])
     ax.legend()
     ax.grid()
     ax.set_xlabel('x [m]')
     ax.set_ylabel('y [m]')
-    if beam_model.shear_only:
-        variant = ' - shear_only'
-    elif beam_model.decouple:
-        variant = ' - y & g decoupled'
-    else:
-        variant = ''
+    # if beam_model.shear_only:
+    #     variant = ' - shear_only'
+    # elif beam_model.decouple:
+    #     variant = ' - y & g decoupled'
+    # else:
+    variant = ''
     ax.set_title('static displacement for ' + load_type + ' load' + variant)
     plt.show()
 
 def plot_eigenmodes(beam_model,  fit = False, analytic = True, number_of_modes = 3):
     
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=(5,2.2), num='eigenmode results')
 
     ax.plot(beam_model.nodal_coordinates['x0'],
             beam_model.nodal_coordinates['y0'],
@@ -109,7 +111,7 @@ def plot_eigenmodes(beam_model,  fit = False, analytic = True, number_of_modes =
 
     for i in range(number_of_modes):
         x = beam_model.nodal_coordinates['x0']
-        y = utilities.check_and_change_sign(beam_model.eigenmodes['y'][i]) 
+        y = utilities.check_and_flip_sign_array(beam_model.eigenmodes['y'][i]) 
         ax.plot(x,
                 y,
                 label = 'mode ' + str(i+1) + ' freq ' + str(round(beam_model.eigenfrequencies[i],3)),
@@ -117,7 +119,7 @@ def plot_eigenmodes(beam_model,  fit = False, analytic = True, number_of_modes =
                 color = COLORS[i])
 
         if analytic:
-            y = utilities.check_and_change_sign(y_analytic[i])
+            y = utilities.check_and_flip_sign_array(y_analytic[i])
             ax.plot(x, y, 
                     label = 'mode ' + str(i+1) + ' analytic'+ ' freq ' + str(round(f_j[i],3)),
                     linestyle = ':',
@@ -132,7 +134,7 @@ def plot_eigenmodes(beam_model,  fit = False, analytic = True, number_of_modes =
             #         label = 'fitted mode ' + str(i+1))
 
             poly = np.poly1d(np.polyfit(x,y,8))
-            y_fitted = utilities.check_and_change_sign(poly(x))
+            y_fitted = utilities.check_and_flip_sign_array(poly(x))
             ax.plot(x, y_fitted,
                     label = 'mode ' + str(i+1) + ' poly fitted',
                     linestyle = '-.',
@@ -146,9 +148,160 @@ def plot_eigenmodes(beam_model,  fit = False, analytic = True, number_of_modes =
     ax.set_title('mode shapes of first 3 modes')
     plt.show()
 
+# # 3D
+
+def plot_eigenmodes_3D(beam_model, opt_targets = None , initial = None, 
+                        number_of_modes = 3, dofs_to_plot = ['y','z','a'],
+                        max_normed = True, do_rad_scale =False, opt_params=None):
+
+    norm = 1
+    rad_scale = np.sqrt(beam_model.parameters['cross_section_area'])
+    weights = ''
+    if opt_params:
+        weights = '\n' + r'$weights:\,{}$'.format(str(opt_params['weights']))
+
+    if number_of_modes == 1:
+        fig, ax = plt.subplots(ncols = number_of_modes, figsize=(2,3.5), num='eigenmode results')
+
+        x = beam_model.nodal_coordinates['x0']
+        ax.plot( beam_model.nodal_coordinates['y0'],
+                    x,
+                    label = r'$structure$',
+                    color = 'grey',
+                    linestyle = '--')
+        ax.set_title(r'$mode\,1$ '+'\n' +r'$Frequency$: ' + r'${}$'.format(str(round(beam_model.eigenfrequencies[0],3))) + weights)
+
+        for d_i, dof in enumerate(dofs_to_plot):
+            scale=1.0
+            if do_rad_scale:
+                if dof in ['a','b','g']:
+                    scale = rad_scale
+                else:
+                    scale = 1.0
+            y = utilities.check_and_flip_sign_array(beam_model.eigenmodes[dof][0])
+
+            if max_normed:
+                norm = 1/max(y)
+            
+            if opt_targets:
+                if dof in opt_targets.keys():
+                    y2 = opt_targets[dof]
+                    ax.plot(y2*norm,
+                                x,
+                                label = r'${} target:$'.format(dof),
+                                linestyle = '--',
+                                color = COLORS[d_i])
+            if initial:
+                if dof in initial.keys():
+                    y3 = initial[dof]
+                    ax.plot(y3*norm*scale,
+                                x,
+                                label = r'${} initial:$'.format(dof),
+                                linestyle = ':',
+                                color = COLORS[d_i])
+            ax.plot(y*norm*scale,
+                        x,
+                        label = r'${}$'.format(dof) + r'$_{max}:$' + '{0:.2e}'.format(max(y)),#'max: ' +
+                        linestyle = '-',
+                        color = COLORS[d_i])
+        ax.legend()
+        ax.grid()
+        ax.set_xlabel(r'deflection')
+        ax.set_ylabel(r'x [m]') 
+
+        ratio = max(utilities.check_and_flip_sign_array(beam_model.eigenmodes['a'][0])) / max(utilities.check_and_flip_sign_array(beam_model.eigenmodes['y'][0]))
+        ax.plot(0,0, label = r'$a_{max}/y_{max}: $' + str(round(ratio,2)))    
+        ax.legend()
+
+    else:
+        fig, ax = plt.subplots(ncols = number_of_modes, figsize=(5,4), num='eigenmode results')
+
+        for i in range(number_of_modes):
+            x = beam_model.nodal_coordinates['x0']
+            ax[i].plot( beam_model.nodal_coordinates['y0'],
+                        x,
+                        label = r'$structure$',
+                        color = 'grey',
+                        linestyle = '--')
+            ax[i].set_title(r'$mode$ ' + str(i+1) + '\n' +r'$Frequency$: ' + r'${}$'.format(str(round(beam_model.eigenfrequencies[i],3))) + weights)
+
+            
+            for d_i, dof in enumerate(dofs_to_plot):
+                scale=1.0
+                if do_rad_scale:
+                    if dof in ['a','b','g']:
+                        scale = rad_scale
+                    else:
+                        scale = 1.0
+                y = utilities.check_and_flip_sign_array(beam_model.eigenmodes[dof][i])
+
+                if max_normed:
+                    norm = 1/max(y)
+                if i == 0:
+                    if opt_targets:
+                        if dof in opt_targets.keys():
+                            y2 = opt_targets[dof]
+                            ax[i].plot(y2*norm,#*scale,
+                                        x,
+                                        label = r'${}$'.format(dof) + r'$_{target}$',
+                                        linestyle = '--',
+                                        color = COLORS[d_i])
+                    if initial:
+                        if dof in initial.keys():
+                            y3 = initial[dof]
+                            ax[i].plot(y3*norm*scale,
+                                        x,
+                                        label = r'${}$'.format(dof) + r'$_{initial}$',
+                                        linestyle = ':',
+                                        color = COLORS[d_i])
+                ax[i].plot(y*norm*scale,
+                            x,
+                            label = r'${}$'.format(dof) + r'$_{max}:$ ' + '{0:.2e}'.format(max(y)),
+                            linestyle = '-',
+                            color = COLORS[d_i])
+
+            
+            
+            ax[i].legend()
+            ax[i].grid()
+            ax[i].set_xlabel(r'$deflection$')
+            ax[0].set_ylabel(r'$x \, [m]$') 
+
+        ratio = max(utilities.check_and_flip_sign_array(beam_model.eigenmodes['a'][0])) / max(utilities.check_and_flip_sign_array(beam_model.eigenmodes['y'][0]))
+        ax[0].plot(0,0, label = r'$a_{max}/y_{max} = $' + str(round(ratio,2)))    
+        ax[0].legend()
+        #plt.tight_layout()
+    plt.show()
+
 # # OPTIMIZATIONS
 
-def plot_objective_function_2D(beam_model):
+def plot_objective_function_2D(optimization_object, design_var_label = '-'):
+    fig, ax = plt.subplots()
+
+    objective_function = optimization_object.objective_function
+    #x = np.arange(14000,19000)
+    x = np.arange(-10, 10, 0.01)
+    result = np.zeros(len(x))
+    for i, val in enumerate(x):
+        result[i] = objective_function(val)
+    
+    # extreme = max(result)
+    # idx = np.argwhere(result == extreme)
+    ax.plot(x, result, label = 'parameter ' + design_var_label)#, label = 'max yg: '+str(x[idx]))
+
+    if optimization_object.final_design_variable:
+        ax.vlines(optimization_object.final_design_variable, 0, 1,#max(result), 
+                    label = 'optimized variable: ',# + str(round(optimization_object.final_design_variable, 2)), 
+                    color = 'r', 
+                    linestyle ='--')
+    ax.set_title('objective function')
+    ax.set_xlabel('values of design variable')
+    ax.set_ylabel(r'$ f = \sum w_{i} * e_{i} ^{2}$')
+    ax.grid()
+    ax.legend()
+    plt.show()
+
+def plot_objective_function_2D_old(beam_model):
     fig, ax = plt.subplots()
 
     objective_function = beam_model.objective_function
@@ -174,39 +327,57 @@ def plot_objective_function_2D(beam_model):
     ax.legend()
     plt.show()
 
-def plot_objective_function_3D(beam_model):
+def plot_objective_function_3D(optimization_object):
     '''
     !!! be careful when this is called and what the variables in the beam object are at this time 
     target ?! correct ?
     '''
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
+    fig = plt.figure(num='objective_func', figsize=(5,3))
+    #ax = fig.add_subplot(122, projection='3d')
+    ax1 = fig.add_subplot(111)
 
-    objective_function = beam_model.objective_function
-    x = np.arange(67000, 69000)[::10]
-    y = np.arange(56000, 58000)[::10]
+    objective_function = optimization_object.objective_function
+    x = np.arange(-4,4,0.1)#(67000, 69000)[::10]
+    y = np.arange(0,8,0.1)#(56000, 58000)[::10]
     x,y = np.meshgrid(x,y)
     z = np.zeros((len(x),len(y)))
     for i in range(z.shape[0]):
         for j in range(z.shape[1]):
 
             z[i][j] = objective_function((x[i][j], y[i][j]))
-    #z = objective_function(x,y)
-    # z = np.zeros(len(x))
-    # for i, val in enumerate():
-    #     z[i] = objective_function([val[0], val[1]])
 
-    surf = ax.plot_surface(x,y,z,
-                    cmap= cm.coolwarm,
-                    linewidth=0, 
-                    antialiased=False)
-    fig.colorbar(surf, shrink=0.5, aspect=5)
-    ax.set_title('objective function')
-    ax.set_xlabel('k_yg')
-    ax.set_ylabel('k_gg')
-    ax.set_zlabel('result: (target - current)²/scaling')
-    ax.grid()
-    ax.legend()
+
+    levels = np.linspace(0.1, 0.75, 2000)
+
+    cs = ax1.contourf(x,y,z, 50, cmap = 'viridis')
+    l = list(cs.levels)
+    level_lines = l[:2] + l[2:10:2]
+    cs2 = ax1.contour(cs, levels = level_lines, colors = 'r')
+
+    cs_bar = fig.colorbar(cs,  shrink=0.5, aspect=20, ax = ax1)
+    cs_bar.add_lines(cs2)
+    # surf = ax.plot_surface(x,y,z,
+    #                     #cmap= cm.coolwarm,
+    #                     rstride=1, cstride=1, 
+    #                     linewidth=0,
+    #                     antialiased=False,
+    #                     vmin = z.min(), vmax = z.max())
+
+    #ax.plot_wireframe(x,y,z)
+    #cbar = fig.colorbar(surf, shrink=0.5, aspect=20, ax = ax)#,extend={'min','max'})
+
+    
+    # ax.set_xlabel('k_ya')
+    # ax.set_ylabel('k_ga')
+    # ax.set_zlabel(r'$ f = \sum^{3} w_{i} * e_{i} ^{2}$')
+    # ax.grid()
+
+    ax1.set_title('objective function with weights: ' + str(optimization_object.weights))
+    ax1.set_xlabel('k_ya')
+    ax1.set_ylabel('k_ga')
+    cs_bar.ax.set_xlabel(r'$ f = \sum^{3} w_{i} * e_{i} ^{2}$')
+    ax1.grid( linestyle='--')
+    #ax.legend()
     plt.show()
 
 def plot_multiple_result_vectors(beam_model, vector_list):

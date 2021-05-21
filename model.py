@@ -7,22 +7,17 @@ import warnings
 
 from bernoulli_element import BernoulliElement
 import utilities
-import utilities
 
 num_zero = 1e-15
 
 class BeamModel(object):
 
     def __init__(self, parameters, optimization_parameters = None):
-        
-        self.shear_only = parameters['shear_only']
-        self.decouple = parameters['decouple']
-        if self.shear_only:
-            # if a shear beam is created also the coupling entries get 0
-            self.decouple = True
 
         self.optimize = False
         if optimization_parameters:
+            self.var_handles = optimization_parameters['var_handles']
+            self.consider_mode = optimization_parameters['consider_mode']
             self.opt_params = optimization_parameters
             self.optimize = optimization_parameters['optimization_target']
             self.plot_opt_func = optimization_parameters['plot_opt_func']
@@ -33,15 +28,22 @@ class BeamModel(object):
             self.use_minimize_scalar = optimization_parameters['use_minimize_scalar']
             self.method = optimization_parameters['method']
             self.objective_function = None
-            self.warn_values = None
             self.final_design_variable = None
 
         # MATERIAL; GEOMETRIC AND ELEMENT
         self.parameters = parameters
-        self.n_dofs_node = self.parameters['dofs_per_node']
-        self.dof_labels = parameters['dof_labels']
-        self.dofs_of_bc = self.parameters['bc']
-
+        self.dim = self.parameters['dimension']
+        if self.dim == '2D':
+            self.n_dofs_node = 2
+            self.dof_labels = ['y','g']
+            self.dofs_of_bc = [0,1]
+            self.load_id = -2
+        elif self.dim == '3D':
+            self.n_dofs_node = 6
+            self.dof_labels = ['x', 'y', 'z', 'a', 'b', 'g']
+            self.dofs_of_bc = [0,1,2,3,4,5]
+            self.load_id = -5
+        
         self.n_elems = parameters['n_elements']
         self.n_nodes = self.n_elems + 1
         self.nodes_per_elem = self.parameters['nodes_per_elem']
@@ -51,12 +53,14 @@ class BeamModel(object):
 
         # STATIC LOAD
         self.load_vector = np.zeros(self.n_nodes*self.n_dofs_node)
-        self.load_vector[-2] = self.parameters['static_load_magnitude']
+        self.load_vector[self.load_id] = self.parameters['static_load_magnitude']
         
-        # includes BC application already
-        self.calculate_and_assemble_global_matrices()
+        # NOTE must not be called in advance?
+        self.build_system_matricies(parameters['inital_params_yg'], 
+                                    parameters['inital_params_k_ya'], 
+                                    parameters['inital_params_m_ya'])
         self.eigenvalue_solve()
-        #self.calculate_mass_entries_sensitivity(mode_id=0)
+        self.working_params = []
 
         # optimization after initial initialization and results
         self.yg_values = []
@@ -73,9 +77,6 @@ class BeamModel(object):
             self.norm_track = {0:[], 1:[],2:[]}
             self.adjust_k_yg_for_eigenform(mode_id=0, use_intermediate_corrections = True)
 
-        #calculations
-        #self.eigenvalue_solve()
-
 # # ELEMENT INITIALIZATION AND MATRIX ASSAMBLAGE
 
     def initialize_elements(self):
@@ -83,9 +84,7 @@ class BeamModel(object):
         lx_i = self.parameters['lx_total_beam'] / self.n_elems
 
         for i in range(self.n_elems):
-            # NOTE: not sure if it make sence to pass the shear 
-            # and decouple to the element construction or if better doing it here
-            e = BernoulliElement(self.parameters, lx_i ,i, self.shear_only, self.decouple, self.optimize)
+            e = BernoulliElement(self.parameters, elem_length = lx_i , elem_id = i)
             self.elements.append(e)
 
         self.nodal_coordinates['x0'] = np.zeros(self.n_nodes)
@@ -93,8 +92,20 @@ class BeamModel(object):
         for i in range(self.n_nodes):
             self.nodal_coordinates['x0'][i] = i * lx_i
 
-    def calculate_and_assemble_global_matrices(self):
-
+    def build_system_matricies(self, params_yg = [1.0,1.0,1.0], params_k_ya = [0.0,0.0], params_m_ya = [0.0,0.0,0.0]):
+        ''' 
+        params_yg:
+            0: alpha - stiffness coupling yg
+            1: beta1 - mass coupling yg1
+            2: beta2 - mass coupling yg2
+        params_k_ya:
+            0: omega - stiffness coupling ya
+            1: omega1 - stiffness coupling gamma - a
+        params_m_ya:
+            1: psi1 - mass couling ya_11
+            2: psi2: - mass coupling ya_12
+            3: psi3: - mass coupling ga_11/12 
+        '''
         self.k = np.zeros((self.n_nodes * self.n_dofs_node,
                             self.n_nodes * self.n_dofs_node))
 
@@ -103,8 +114,10 @@ class BeamModel(object):
 
         for element in self.elements:
 
-            k_el = element.get_stiffness_matrix()
-            m_el = element.get_mass_matrix()
+            k_el = element.get_stiffness_matrix_var(alpha = params_yg[0], omega = params_k_ya[0], omega1 = params_k_ya[1])
+            m_el = element.get_mass_matrix_var(beta1 = params_yg[1], beta2 = params_yg[2], 
+                                                psi1 = params_m_ya[0], psi2 = params_m_ya[0],
+                                                psi3 = params_m_ya[2])
 
             start = self.n_dofs_node * element.index
             end = start + self.n_dofs_node * self.nodes_per_elem
@@ -112,9 +125,9 @@ class BeamModel(object):
             self.k[start: end, start: end] += k_el
             self.m[start: end, start: end] += m_el
 
+        self.opt_params_mass_ya = params_m_ya
         self.comp_k = self.apply_bc_by_reduction(self.k)
         self.comp_m = self.apply_bc_by_reduction(self.m)
-
 
 # # BOUNDARY CONDITIONS
 
@@ -179,39 +192,51 @@ class BeamModel(object):
         list[i] -> mode id 
         '''
         eig_values_raw, eigen_modes_raw = linalg.eigh(self.comp_k, self.comp_m)
+        # try:
+        #     eig_values_raw, eigen_modes_raw = linalg.eigh(self.comp_k, self.comp_m)
+        #     #self.working_params.append(self.opt_params_mass_ya)
+        # except np.linalg.LinAlgError:
+        #     print ('Mass matrix is not positive definite')
+        #     print (self.opt_params_mass_ya)
+        #     return 0
+
+        if np.any(eig_values_raw < 0):
+            odds = eig_values_raw < 0.0
+            if len(eig_values_raw[odds]) > 1:
+                print (eig_values_raw[odds])
 
         eig_values = np.sqrt(np.real(eig_values_raw))
-        self.warn_values = {'K_yg':[], 'eigen_val':[]}
-        # if self.optimize:
-        #     if RuntimeWarning:
-        #         self.warn_values['K_yg'].append(self.comp_k[0][2])
-        #         self.warn_values['eigen_val'].append(eig_values[0])
+        
 
         self.eigenfrequencies = eig_values / 2. / np.pi #rad/s
         self.eig_periods = 1 / self.eigenfrequencies
 
         gen_mass = np.matmul(np.matmul(np.transpose(eigen_modes_raw), self.comp_m), eigen_modes_raw)
-        
-        #print('\n generalized mass: \n', gen_mass)
-        # numpy scales the eigenvectors to length 1.0 
-        is_identiy = np.allclose(gen_mass, np.eye(gen_mass.shape[0]))
-        if is_identiy:
-            pass
-            # print ('\n generalized mass is identity: ', is_identiy)
-        else:
+       
+        is_identiy = np.allclose(gen_mass, np.eye(gen_mass.shape[0]), rtol=1e-04)
+        if not is_identiy:
+            print ('generalized mass matrix:')
+            for i in range(gen_mass.shape[0]):
+                for j in range(gen_mass.shape[1]):
+                    if gen_mass[i][j] < 1e-3:
+                        gen_mass[i][j] = 0
+            print (gen_mass)
+            print ('\n current m_ga param: ', self.opt_params_mass_ya, '\n')
             raise Exception('generalized mass is not identiy')
        
-
         self.eigenmodes = {}
         for dof in self.dof_labels:
             self.eigenmodes[dof] = []
-        #NOTE: her only fixed free boundary implemented 
+        # NOTE: her only fixed free boundary implemented 
         # could also be done with apply BC and recuperate BC to make it generic   
         for i in range(len(self.eigenfrequencies)):
             for j, dof in enumerate(self.dof_labels):
                 self.eigenmodes[dof].append(np.zeros(self.n_nodes))
+                dof_and_mode_specific = eigen_modes_raw[j:,i][::len(self.dof_labels)]
                 self.eigenmodes[dof][i][1:] = eigen_modes_raw[j:,i][::len(self.dof_labels)]
-                
+
+        self.eigenmodes = utilities.check_and_flip_sign_dict(self.eigenmodes)
+        
     def static_analysis_solve(self):
         self.static_deformation = {}
 
@@ -223,54 +248,14 @@ class BeamModel(object):
         for i, label in enumerate(self.dof_labels):
             self.static_deformation[label] = static_result[i::len(self.dof_labels)]
 
-    # not used 
-    def fit_eigenmodes(self):
-        self.eigenmodes_fitted = {}
-        x = self.nodal_coordinates['x0']
-        for dof in self.eigenmodes:
-            self.eigenmodes_fitted[dof] = []
-            for mode in self.eigenmodes[dof]:
-                polynom = np.poly1d(np.polyfit(x, mode, 8))
-                self.eigenmodes_fitted[dof].append(polynom(x))
 
-# # SENSITIVITIES
-    
-    # https://www.mdpi.com/2076-3417/10/7/2577/pdf -> sensitivites of eigenvectors
-    # not working here and not used
-    def calculate_mass_entries_sensitivity(self, mode_id):
-        # need the raw eigenvalues and the generalized modes
-        eig_values_raw, eigen_modes_raw = linalg.eigh(self.comp_k, self.comp_m)
 
-        #eig_values = np.sqrt(np.real(eig_values_raw))
-        # for m_yg_11
-        dM_dp = np.zeros((self.comp_m.shape))
 
-        # this leads to everything except the first ones to be zero
-        m_i = np.zeros((4,4))
-        m_i[0][1], m_i[1][0] = -1, -1
-        m_i[2][3], m_i[3][2] = 1, 1
 
-        for e in self.elements:
-            start = self.n_dofs_node * e.index
-            end = start + self.n_dofs_node * self.nodes_per_elem
-            dM_dp[start: end, start: end] += m_i
-        
-        dM_dp = self.apply_bc_by_reduction(dM_dp)
 
-        # assuming that eigenmodes raw are generalized 
-        dphi_j_dm_yg = 0.
-        c_jj = 0.5 * np.matmul(np.matmul(np.transpose(eigen_modes_raw[mode_id]), dM_dp), eigen_modes_raw[mode_id])
-        for r in range(len(eig_values_raw)):
-            if r != mode_id:
-                c_jr = (np.matmul(np.matmul(np.transpose(eigen_modes_raw[r]), -1*eig_values_raw[mode_id]*dM_dp), eigen_modes_raw[mode_id])) \
-                    / (eig_values_raw[mode_id] - eig_values_raw[r])
-
-                dphi_j_dm_yg += c_jr * eigen_modes_raw[r] - c_jj * eigen_modes_raw[mode_id]
-        
-        self.dM_dp = dM_dp
-
-# # OPTIMIZATION
-
+# ==========================================================================
+# OLD OWN THINGS
+# ==========================================================================
 # FOR STATIC DISPLACEMENT K_yg
     def adjust_k_yg_for_static_disp(self):
 
@@ -309,7 +294,7 @@ class BeamModel(object):
             e.k_yg = k_yg
 
         #re-evaluate to have a new system
-        self.calculate_and_assemble_global_matrices()
+        self.build_system_matricies()
 
         self.static_analysis_solve()
         current_result = self.static_deformation['y'][-1]
@@ -359,7 +344,7 @@ class BeamModel(object):
             e.k_yg = k_yg
 
         #re-evaluate to have a new system
-        self.calculate_and_assemble_global_matrices()
+        self.build_system_matricies()
 
         self.eigenvalue_solve()
         current_result = self.eigenfrequencies[0]
@@ -387,7 +372,7 @@ class BeamModel(object):
         # firstly for now the 1st mode shape
         if mode_id < 3:
             # analytic mode shape only hast 'y' displacements
-            target = utilities.check_and_change_sign(utilities.analytic_eigenmode_shapes(self)[mode_id])*1.1
+            target = utilities.check_and_flip_sign_array(utilities.analytic_eigenmode_shapes(self)[mode_id])*1.1
             target_freq = utilities.analytic_eigenfrequencies(self)[mode_id]
 
             self.objective_function = partial(self.yg_objective_function_eigenform,
@@ -417,13 +402,13 @@ class BeamModel(object):
 
                 # check if eigenform still fits and recursively adjust:
 
-                current_norm = np.linalg.norm(target - utilities.check_and_change_sign(self.eigenmodes['y'][mode_id]))
+                current_norm = np.linalg.norm(target - utilities.check_and_flip_sign_array(self.eigenmodes['y'][mode_id]))
                 self.norm_track[mode_id].append(current_norm)
                 # NOTE: rounding digits must be checked what makes sence
                 if round(current_norm, 2) != 0:
                     # dont raise the mode id
                     for i in range(self.n_nodes-1):
-                        nodal_error = (target[i+1] - utilities.check_and_change_sign(self.eigenmodes['y'][mode_id])[i+1])
+                        nodal_error = (target[i+1] - utilities.check_and_flip_sign_array(self.eigenmodes['y'][mode_id])[i+1])
                         if nodal_error >= 0.01:
                             print ('try to adjust node specific node:', str(i+1))
                             self.init_guess = minimization_result_k_yg.x[0]
@@ -436,10 +421,6 @@ class BeamModel(object):
             # setting the init guess to the result since this should always be better then a random guess
             self.init_guess = minimization_result_k_yg.x[0]
             self.adjust_k_yg_for_eigenform(next_mode)
-            
-            # print ('result for YG:', minimization_result.x[0])
-            # print('\noptimizing next mode:')
-            #print ('error:', 60000 - minimization_result.x[0])
 
         else: 
             # if i turned 3 the init guess is the last result
@@ -457,10 +438,10 @@ class BeamModel(object):
             e.k_yg = k_yg
 
         #re-evaluate to have a new system
-        self.calculate_and_assemble_global_matrices()
+        self.build_system_matricies()
 
         self.eigenvalue_solve()
-        current = utilities.check_and_change_sign(self.eigenmodes['y'][mode_id])
+        current = utilities.check_and_flip_sign_array(self.eigenmodes['y'][mode_id])
 
         scaling = np.linalg.norm(target)**self.opt_params['scaling_exponent']
         if round(scaling, 0) == 1.0:
@@ -505,7 +486,7 @@ class BeamModel(object):
                 Iy = Iy[0]
             e.Iy = Iy
 
-        self.calculate_and_assemble_global_matrices()
+        self.build_system_matricies()
         self.eigenvalue_solve()
 
         current = self.eigenfrequencies[mode_id]
@@ -542,7 +523,7 @@ class BeamModel(object):
                 rho = rho[0]
             e.rho = rho
 
-        self.calculate_and_assemble_global_matrices()
+        self.build_system_matricies()
         self.eigenvalue_solve()
 
         current = self.eigenfrequencies[mode_id]
@@ -559,10 +540,10 @@ class BeamModel(object):
                                             target_disp)
 
         minimization_result_k_yg_elem = minimize(objective_function_elem,
-                                            self.init_guess,
-                                            method= self.method,
-                                            options = {'disp':0}
-                                            )
+                                                self.init_guess,
+                                                method= self.method,
+                                                options = {'disp':0}
+                                                )
 
     def yg_elem_objective_function_eigenform(self, elem_id, mode_id, target_disp, k_yg):
         
@@ -574,10 +555,10 @@ class BeamModel(object):
         self.elements[elem_id].k_yg = k_yg
         
         #re-evaluate to have a new system
-        self.calculate_and_assemble_global_matrices()
+        self.build_system_matricies()
 
         self.eigenvalue_solve()
-        current = utilities.check_and_change_sign(self.eigenmodes['y'][mode_id])
+        current = utilities.check_and_flip_sign_array(self.eigenmodes['y'][mode_id])
 
         scaling = np.linalg.norm(target_disp)**self.opt_params['scaling_exponent']
         if round(scaling, 0) == 1.0:
@@ -623,7 +604,7 @@ class BeamModel(object):
             e.k_gg = k_shear[1]
 
         #re-evaluate to have a new system
-        self.calculate_and_assemble_global_matrices()
+        self.build_system_matricies()
 
         self.eigenvalue_solve()
         current_result = self.eigenfrequencies[mode_id]
