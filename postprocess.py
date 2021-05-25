@@ -152,7 +152,8 @@ def plot_eigenmodes(beam_model,  fit = False, analytic = True, number_of_modes =
 
 def plot_eigenmodes_3D(beam_model, opt_targets = None , initial = None, 
                         number_of_modes = 3, dofs_to_plot = ['y','z','a'],
-                        max_normed = True, do_rad_scale =False, opt_params=None):
+                        max_normed = True, do_rad_scale =False, opt_params=None,
+                        fig_title = ''):
 
     norm = 1
     rad_scale = np.sqrt(beam_model.parameters['cross_section_area'])
@@ -162,7 +163,7 @@ def plot_eigenmodes_3D(beam_model, opt_targets = None , initial = None,
 
     if number_of_modes == 1:
         fig, ax = plt.subplots(ncols = number_of_modes, figsize=(2,3.5), num='eigenmode results')
-
+        fig.suptitle(fig_title)
         x = beam_model.nodal_coordinates['x0']
         ax.plot( beam_model.nodal_coordinates['y0'],
                     x,
@@ -185,10 +186,10 @@ def plot_eigenmodes_3D(beam_model, opt_targets = None , initial = None,
             
             if opt_targets:
                 if dof in opt_targets.keys():
-                    y2 = opt_targets[dof]
+                    y2 = opt_targets[dof] *scale
                     ax.plot(y2*norm,
                                 x,
-                                label = r'${} target:$'.format(dof),
+                                label =  r'${}$'.format(dof) + r'$_{target}$',
                                 linestyle = '--',
                                 color = COLORS[d_i])
             if initial:
@@ -196,7 +197,7 @@ def plot_eigenmodes_3D(beam_model, opt_targets = None , initial = None,
                     y3 = initial[dof]
                     ax.plot(y3*norm*scale,
                                 x,
-                                label = r'${} initial:$'.format(dof),
+                                label =  r'${}$'.format(dof) + r'$_{inital}$',
                                 linestyle = ':',
                                 color = COLORS[d_i])
             ax.plot(y*norm*scale,
@@ -210,11 +211,12 @@ def plot_eigenmodes_3D(beam_model, opt_targets = None , initial = None,
         ax.set_ylabel(r'x [m]') 
 
         ratio = max(utilities.check_and_flip_sign_array(beam_model.eigenmodes['a'][0])) / max(utilities.check_and_flip_sign_array(beam_model.eigenmodes['y'][0]))
-        ax.plot(0,0, label = r'$a_{max}/y_{max}: $' + str(round(ratio,2)))    
+        ax.plot(0,0, label = r'$a_{max}/y_{max}: $' + str(round(ratio,3)))    
         ax.legend()
 
     else:
         fig, ax = plt.subplots(ncols = number_of_modes, figsize=(5,4), num='eigenmode results')
+        fig.suptitle(fig_title)
 
         for i in range(number_of_modes):
             x = beam_model.nodal_coordinates['x0']
@@ -240,7 +242,7 @@ def plot_eigenmodes_3D(beam_model, opt_targets = None , initial = None,
                 if i == 0:
                     if opt_targets:
                         if dof in opt_targets.keys():
-                            y2 = opt_targets[dof]
+                            y2 = opt_targets[dof]*scale
                             ax[i].plot(y2*norm,#*scale,
                                         x,
                                         label = r'${}$'.format(dof) + r'$_{target}$',
@@ -268,26 +270,26 @@ def plot_eigenmodes_3D(beam_model, opt_targets = None , initial = None,
             ax[0].set_ylabel(r'$x \, [m]$') 
 
         ratio = max(utilities.check_and_flip_sign_array(beam_model.eigenmodes['a'][0])) / max(utilities.check_and_flip_sign_array(beam_model.eigenmodes['y'][0]))
-        ax[0].plot(0,0, label = r'$a_{max}/y_{max} = $' + str(round(ratio,2)))    
+        ax[0].plot(0,0, label = r'$a_{max}/y_{max} = $' + str(round(ratio,3)))    
         ax[0].legend()
         #plt.tight_layout()
     plt.show()
 
 # # OPTIMIZATIONS
 
-def plot_objective_function_2D(optimization_object, design_var_label = '-'):
+def plot_objective_function_2D(optimization_object, design_var_label = 'design variable'):
     fig, ax = plt.subplots()
 
-    objective_function = optimization_object.objective_function
+    objective_function = optimization_object.optimizable_function
     #x = np.arange(14000,19000)
-    x = np.arange(-10, 10, 0.01)
+    x = np.arange(0, 10, 0.01)
     result = np.zeros(len(x))
     for i, val in enumerate(x):
         result[i] = objective_function(val)
     
     # extreme = max(result)
     # idx = np.argwhere(result == extreme)
-    ax.plot(x, result, label = 'parameter ' + design_var_label)#, label = 'max yg: '+str(x[idx]))
+    ax.plot(x, result)#, label = 'max yg: '+str(x[idx]))
 
     if optimization_object.final_design_variable:
         ax.vlines(optimization_object.final_design_variable, 0, 1,#max(result), 
@@ -295,7 +297,7 @@ def plot_objective_function_2D(optimization_object, design_var_label = '-'):
                     color = 'r', 
                     linestyle ='--')
     ax.set_title('objective function')
-    ax.set_xlabel('values of design variable')
+    ax.set_xlabel('values of ' + design_var_label )
     ax.set_ylabel(r'$ f = \sum w_{i} * e_{i} ^{2}$')
     ax.grid()
     ax.legend()
@@ -336,9 +338,13 @@ def plot_objective_function_3D(optimization_object):
     #ax = fig.add_subplot(122, projection='3d')
     ax1 = fig.add_subplot(111)
 
-    objective_function = optimization_object.objective_function
-    x = np.arange(-4,4,0.1)#(67000, 69000)[::10]
-    y = np.arange(0,8,0.1)#(56000, 58000)[::10]
+    objective_function = optimization_object.optimizable_function
+
+    x = np.arange(-10,10,0.1)#(67000, 69000)[::10]
+    y = np.arange(-10,10,0.1)#(56000, 58000)[::10]
+
+    if x.shape != y.shape:
+        raise Exception('shape of x and y input parameters must be the same for 3D plotting')
     x,y = np.meshgrid(x,y)
     z = np.zeros((len(x),len(y)))
     for i in range(z.shape[0]):
@@ -372,7 +378,7 @@ def plot_objective_function_3D(optimization_object):
     # ax.set_zlabel(r'$ f = \sum^{3} w_{i} * e_{i} ^{2}$')
     # ax.grid()
 
-    ax1.set_title('objective function with weights: ' + str(optimization_object.weights))
+    #ax1.set_title('objective function with weights: ' + str(optimization_object.weights))
     ax1.set_xlabel('k_ya')
     ax1.set_ylabel('k_ga')
     cs_bar.ax.set_xlabel(r'$ f = \sum^{3} w_{i} * e_{i} ^{2}$')

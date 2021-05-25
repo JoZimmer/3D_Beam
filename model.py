@@ -12,7 +12,7 @@ num_zero = 1e-15
 
 class BeamModel(object):
 
-    def __init__(self, parameters, optimization_parameters = None):
+    def __init__(self, parameters, optimization_parameters = None, optimize_frequencies_init = True):
 
         self.optimize = False
         if optimization_parameters:
@@ -59,23 +59,35 @@ class BeamModel(object):
         self.build_system_matricies(parameters['inital_params_yg'], 
                                     parameters['inital_params_k_ya'], 
                                     parameters['inital_params_m_ya'])
-        self.eigenvalue_solve()
+        
         self.working_params = []
+        self.eigenvalue_solve()
 
-        # optimization after initial initialization and results
-        self.yg_values = []
-        self.gg_values = []
-        self.results = []
-        self.disp_vector = []
-        if self.optimize == 'static_tip_disp':
-            self.adjust_k_yg_for_static_disp()
-        elif self.optimize == 'frequency':
-            self.adjust_k_yg_for_frequency()
-        elif self.optimize == 'frequency_shear':
-            self.adjust_k_yg_k_gg_for_frequency()
-        elif self.optimize == 'eigenform':
-            self.norm_track = {0:[], 1:[],2:[]}
-            self.adjust_k_yg_for_eigenform(mode_id=0, use_intermediate_corrections = True)
+        self.optimize_frequencies_init = optimize_frequencies_init
+        
+        if self.optimize_frequencies_init:
+            from optimizations import Optimizations
+            import postprocess
+            self.init_opt = Optimizations(self)
+
+            self.init_opt.adjust_sway_z_stiffness_for_target_eigenfreq(utilities.caarc_freqs[0], 
+                                                                        target_mode = 0,
+                                                                        print_to_console=False)
+
+            self.init_opt.adjust_sway_y_stiffness_for_target_eigenfreq(utilities.caarc_freqs[1], 
+                                                                    target_mode = 1,
+                                                                    print_to_console=False)
+
+            # postprocess.plot_eigenmodes_3D(self, number_of_modes=3, dofs_to_plot=['y','a','z'], max_normed=False)
+
+            self.init_opt.adjust_torsional_stiffness_for_target_eigenfreq(utilities.caarc_freqs[2],
+                                                                        target_mode = 2,
+                                                                        print_to_console=False)
+
+            # #postprocess.plot_objective_function_3D(self.init_opt)
+
+            # postprocess.plot_eigenmodes_3D(self, number_of_modes=3, dofs_to_plot=['y','a','z'], max_normed=False)
+            
 
 # # ELEMENT INITIALIZATION AND MATRIX ASSAMBLAGE
 
@@ -94,6 +106,7 @@ class BeamModel(object):
 
     def build_system_matricies(self, params_yg = [1.0,1.0,1.0], params_k_ya = [0.0,0.0], params_m_ya = [0.0,0.0,0.0]):
         ''' 
+        assigns K_el and M_el to the object. BC is applied already
         params_yg:
             0: alpha - stiffness coupling yg
             1: beta1 - mass coupling yg1
@@ -102,7 +115,7 @@ class BeamModel(object):
             0: omega - stiffness coupling ya
             1: omega1 - stiffness coupling gamma - a
         params_m_ya:
-            1: psi1 - mass couling ya_11
+            1: psi1: - mass couling ya_11
             2: psi2: - mass coupling ya_12
             3: psi3: - mass coupling ga_11/12 
         '''
@@ -191,19 +204,20 @@ class BeamModel(object):
         self.eigenmodes as a dictionary with the dof as key and list as values 
         list[i] -> mode id 
         '''
-        eig_values_raw, eigen_modes_raw = linalg.eigh(self.comp_k, self.comp_m)
-        # try:
-        #     eig_values_raw, eigen_modes_raw = linalg.eigh(self.comp_k, self.comp_m)
-        #     #self.working_params.append(self.opt_params_mass_ya)
-        # except np.linalg.LinAlgError:
-        #     print ('Mass matrix is not positive definite')
-        #     print (self.opt_params_mass_ya)
-        #     return 0
+        #eig_values_raw, eigen_modes_raw = linalg.eigh(self.comp_k, self.comp_m)
+        try:
+            eig_values_raw, eigen_modes_raw = linalg.eigh(self.comp_k, self.comp_m)
+            self.working_params.append(self.opt_params_mass_ya)
+        except np.linalg.LinAlgError:
+            #print ('Mass matrix is not positive definite for m_ya params:')
+            #print (self.opt_params_mass_ya)
+            #raise Exception('Linalg Error')
+            return 0
 
-        if np.any(eig_values_raw < 0):
-            odds = eig_values_raw < 0.0
-            if len(eig_values_raw[odds]) > 1:
-                print (eig_values_raw[odds])
+        # if np.any(eig_values_raw < 0):
+        #     odds = eig_values_raw < 0.0
+        #     if len(eig_values_raw[odds]) > 1:
+        #         print (eig_values_raw[odds])
 
         eig_values = np.sqrt(np.real(eig_values_raw))
         
@@ -212,8 +226,8 @@ class BeamModel(object):
         self.eig_periods = 1 / self.eigenfrequencies
 
         gen_mass = np.matmul(np.matmul(np.transpose(eigen_modes_raw), self.comp_m), eigen_modes_raw)
-       
-        is_identiy = np.allclose(gen_mass, np.eye(gen_mass.shape[0]), rtol=1e-04)
+
+        is_identiy = np.allclose(gen_mass, np.eye(gen_mass.shape[0]), rtol=1e-05)
         if not is_identiy:
             print ('generalized mass matrix:')
             for i in range(gen_mass.shape[0]):
@@ -223,7 +237,13 @@ class BeamModel(object):
             print (gen_mass)
             print ('\n current m_ga param: ', self.opt_params_mass_ya, '\n')
             raise Exception('generalized mass is not identiy')
-       
+    
+        if not is_identiy:
+            return 0
+
+        else:
+            self.working_params.append(self.opt_params_mass_ya)
+
         self.eigenmodes = {}
         for dof in self.dof_labels:
             self.eigenmodes[dof] = []
@@ -248,7 +268,14 @@ class BeamModel(object):
         for i, label in enumerate(self.dof_labels):
             self.static_deformation[label] = static_result[i::len(self.dof_labels)]
 
+# # RETURN OPTIMIZED PARAMETERS
 
+    def get_optimized_geometric_params(self):
+        if not self.optimize_frequencies_init:
+            print ('no internal optimization done -> set optimize_frequencies_init to True')
+            return 0
+        else:
+            return self.init_opt.opt_geometric_props
 
 
 

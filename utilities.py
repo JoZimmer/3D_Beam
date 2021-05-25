@@ -1,6 +1,6 @@
 import numpy as np
 
-
+caarc_freqs = [0.231, 0.429, 0.536]
 # VALUES COPIED WITH FULL MATRICIES CALCULATED
 eigenmodes_target_2D_3_elems = {'y':[np.array([0.        , 0.0040305 , 0.013317  , 0.02434817]),
                                     np.array([ 0.        , -0.01444802, -0.01037197,  0.02449357]),
@@ -17,7 +17,13 @@ eigenmodes_target_2D_10_elems ={'y':[np.array([0.0, -0.000223647046255273, -0.00
                                     np.array([ 0.00000000e+00, -3.34883542e-04, -2.77308592e-04,  3.15745412e-05,3.61060122e-04,  4.93762038e-04,  3.37172087e-04, -3.17237701e-05,-4.21134643e-04, -6.52640493e-04, -6.98021127e-04])]} 
 
 def evaluate_residual(a_cur, a_tar):
-    return np.linalg.norm(np.subtract(a_cur, a_tar))/np.amax(np.absolute(a_tar))
+    residual = np.linalg.norm(np.subtract(a_cur, a_tar)) / np.amax(np.absolute(a_tar))
+
+    # print ('current: ', a_cur)
+    # print ('target: ', a_tar)
+    # print('residual:', residual)
+    # print()
+    return residual
 
 
 def check_and_flip_sign_dict(eigenmodes_dict):

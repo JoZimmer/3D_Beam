@@ -15,6 +15,7 @@ class BernoulliElement(object):
 
         self.Iy = parameters['Iy']
         self.Iz = parameters['Iz']
+        self.I_param = parameters['I_param']
         self.It = parameters['It']
         self.number_of_nodes = parameters['nodes_per_elem']
 
@@ -35,13 +36,13 @@ class BernoulliElement(object):
 
         # bending around z - displacement in y roation gamma around z
 
-        k_yy_11 = 12.0 * EIy / self.L**3
+        k_yy_11 = 12.0 * EIz / self.L**3
         k_yy_12 = -k_yy_11
 
-        k_gg_11 = 4.0 * EIy / self.L
-        k_gg_12 = 2.0 * EIy / self.L
+        k_gg_11 = 4.0 * EIz / self.L
+        k_gg_12 = 2.0 * EIz / self.L
 
-        k_yg = 6.0 * EIy / self.L**2
+        k_yg = 6.0 * EIz / self.L**2
         akyg = alpha * k_yg
 
         k_el_yg = np.array([[ k_yy_11, -akyg,    k_yy_12, -akyg],
@@ -59,33 +60,36 @@ class BernoulliElement(object):
                                         [k_xx_12, k_xx_11]])
 
             # bending around y - displacement in z roation beta around y
-            k_zz_11 = 12.0 * EIz / self.L**3
+            k_zz_11 = 12.0 * EIy / self.L**3
             k_zz_12 = -k_zz_11
 
-            k_bb_11 = 4.0 * EIz / self.L
-            k_bb_12 = 2.0 * EIz / self.L
+            k_bb_11 = 4.0 * EIy / self.L
+            k_bb_12 = 2.0 * EIy / self.L
 
-            k_zb = 6.0 * EIz / self.L**2
+            k_zb = 6.0 * EIy / self.L**2
 
             k_el_zb = np.array([[ k_zz_11, -k_zb,    k_zz_12, -k_zb],
                                 [-k_zb,     k_bb_11, k_zb,     k_bb_12],
                                 [ k_zz_12,  k_zb,    k_zz_11,  k_zb],
                                 [-k_zb,     k_bb_12, k_zb,     k_bb_11]])
 
-            # bending - displacement along y, rotations around axis x due to exzenticity in z direchtion ez
+        # ===========================
+        # TORSION - COUPLING
+        # ===========================
 
             k_aa = self.G * self.It / self.L 
-            k_ya = -omega * k_yy_11 # from eccentricity approach to have reasonable scales of start?!
+            k_ya = -omega * 12.0 * self.E * self.I_param / self.L**3 # from eccentricity approach to have reasonable scales of start e * k_yy_11
 
             k_aa_11 = k_aa
+            
             # using signs as it is done by Frias
             k_ya_11 = -k_ya
-            k_ya_12 = k_ya
+            k_ya_12 =  k_ya
 
             k_el_ya = np.array([[k_aa_11, k_ya_12,],
                                 [k_ya_12, k_ya_11]])
 
-            k_ga = omega1 * k_yg
+            k_ga = omega1 * 6.0 * self.E * self.I_param  / self.L**2
 
         if self.dim == '2D':
             # NOTE this is without axial stuff
@@ -95,7 +99,7 @@ class BernoulliElement(object):
             k_el = np.array([[k_el_x[0][0], 0., 0., 0., 0., 0., k_el_x[0][1], 0., 0., 0., 0., 0.],
                              [0., k_el_yg[0][0], 0., -k_ya, 0., k_el_yg[0][1], 0., k_el_yg[0][2], 0., k_ya, 0., k_el_yg[0][3]],
                              [0., 0., k_el_zb[0][0], 0., k_el_zb[0][1], 0., 0., 0., k_el_zb[0][2], 0., k_el_zb[0][3],0.],
-                             [0., -k_ya, 0., k_aa_11, 0., 0., -k_ga, k_ya, 0., -k_aa_11, 0., k_ga],
+                             [0., -k_ya, 0., k_aa_11, 0., -k_ga, 0., k_ya, 0., -k_aa_11, 0., k_ga],
                              [0., 0., k_el_zb[0][1], 0., k_el_zb[1][1], 0., 0., 0., k_el_zb[1][2], 0., k_el_zb[1][3],0.],
                              [0., k_el_yg[0][1], 0., -k_ga, 0., k_el_yg[1][1], 0., k_el_yg[1][2], 0., k_ga, 0.,k_el_yg[1][3]],
 
@@ -114,6 +118,7 @@ class BernoulliElement(object):
         '''
         return get_stiffness_matrix_var(alpha=1.0, omega=0.0)
 
+
     def get_mass_matrix_var(self, beta1 = 1.0, beta2 = 1.0, psi1 = 0.0, psi2 = 0.0, psi3 = 0.0):
         ''' 
         in Euler - Bernoulli Theroy the rotary part of the element mass matrix is neglected
@@ -127,7 +132,6 @@ class BernoulliElement(object):
             psi1:  coupling parameter y - a at same node
             psi2:  coupling parameter y - a at opposing nodes
             psi3:  coupling parameter g - a 
-                all are dependent on m_el_x: GIt/L *
         '''
 
         if self.dim == '2D':
@@ -272,30 +276,30 @@ class BernoulliElement(object):
             
             # coupling of displacement y with alpha a
 
-            m_ya = m_const / 6 
+            m_ya = -m_const  / 10
             
-            m_ya_11 = m_ya * psi1 # see reason for that choice taken form frias but basically to have a reaonable scale 
-            m_ya_12 = m_ya * psi2 # NOTE seems to be smaler than m_ya_11 maybe this could be taken into accoutn
+            m_ya_11 = 7/20 * m_ya * psi1 # see reason for that choice taken form frias but basically to have a reaonable scale 
+            m_ya_12 = 3/20 * m_ya * psi2 # seems to be smaler than m_ya_11 maybe this could be taken into accoutn
            
             # coupling gamma - alpha (also from Frias with ratio of m_ya - m_ga)
-            m_ga = m_const *self.L /6
-            m_ga_11 = m_ga * psi3
-            m_ga_12 = 7/9 * m_ga *  psi3
+            m_ga = m_const * self.L 
+            m_ga_11 = 1/20 * m_ga *  psi3
+            m_ga_12 = 1/30 * m_ga *  psi3
             
 
             # ===================================================
             # TORSION COUPLING - BENDING AROUND Y (Z-DSIP; B-ROT)
             # ===================================================
 
-            m_za = m_const / 6
+            m_za = m_const * 0
 
-            m_za_11 = m_za * psi1
-            m_za_12 = m_za * psi2
+            m_za_11 = 7/20 * m_za * psi1 
+            m_za_12 = 3/20 * m_za * psi2
 
-            m_ba = m_const *self.L /6
+            m_ba = m_const * self.L
 
-            m_ba_11 = m_ba * psi3
-            m_ba_12 = 7/9 * m_ba * psi3
+            m_ba_11 = 1/20 * m_ba * psi3
+            m_ba_12 = 1/30 * m_ba * psi3
 
 
             # assemble all components
@@ -303,7 +307,7 @@ class BernoulliElement(object):
             m_el = np.array([[m_el_x[0][0], 0., 0., 0., 0., 0., m_el_x[0][1], 0., 0., 0., 0., 0.],
                                 [0., m_el_yg[0][0], 0., m_ya_11, 0., m_el_yg[0][1], 0., m_el_yg[0][2], 0., m_ya_12, 0., m_el_yg[0][3]],
                                 [0., 0., m_el_zb[0][0], -m_za_11, m_el_zb[0][1], 0., 0., 0., m_el_zb[0][2], -m_za_12, m_el_zb[0][3],0.],
-                                [0., m_ya_11, -m_za_11, m_el_a[0][0],m_ba_11, m_ga_11, 0., m_ya_12, -m_za_12, m_el_a[0][1], m_ba_12, m_ga_12],
+                                [0., m_ya_11, -m_za_11, m_el_a[0][0], m_ba_11, m_ga_11, 0., m_ya_12, -m_za_12, m_el_a[0][1], m_ba_12, m_ga_12],
                                 [0., 0., m_el_zb[0][1], m_ba_11, m_el_zb[1][1], 0., 0., 0., m_el_zb[1][2], -m_ba_12, m_el_zb[1][3], 0.],
                                 [0., m_el_yg[0][1], 0., m_ga_11, 0., m_el_yg[1][1], 0., m_el_yg[1][2], 0., -m_ga_12, 0., m_el_yg[1][3]],
 
@@ -322,10 +326,10 @@ class BernoulliElement(object):
                             [m_el_yg[0][2], m_el_yg[1][2], m_el_yg[2][2], m_el_yg[2][3]],
                             [m_el_yg[0][3], m_el_yg[1][3], m_el_yg[2][3], m_el_yg[3][3]]])
             return m_el
-        
-
+      
     def get_mass_matrix_tar(self):
         return get_mass_matrix_var(beta1=1.0,beta2=1.0,psi1=0.0, psi2=0.0)
+
 
     def evaluate_relative_importance_of_shear(self):
         '''
