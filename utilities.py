@@ -1,4 +1,5 @@
 import numpy as np
+import json
 
 caarc_freqs = [0.231, 0.429, 0.536]
 # VALUES COPIED WITH FULL MATRICIES CALCULATED
@@ -108,7 +109,17 @@ def analytic_eigenmode_shapes(beam_model):
     return w
 
 
-# CAARC
+def save_optimized_beam_parameters(opt_beam_model, fname):
+    f = open('optimized_parameters\\'+fname+'.json','w')
+    
+    json.dump(opt_beam_model.parameters, f)
+    f.close()
 
 
+def prepare_string_for_latex(string):
+    if '_' in string:
+        return string.replace('_','')
+    else:
+        return string
 
+# # DYNAMIC ANALYSIS

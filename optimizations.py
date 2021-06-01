@@ -201,8 +201,8 @@ class Optimizations(object):
 
         # re-evaluate
         self.model.build_system_matricies(self.model.parameters['inital_params_yg'], 
-                                          self.model.parameters['inital_params_k_ya'], 
-                                          self.model.parameters['inital_params_m_ya'])
+                                          self.model.parameters['params_k_ya'], 
+                                          self.model.parameters['params_m_ya'])
 
         self.model.eigenvalue_solve()
 
@@ -259,8 +259,8 @@ class Optimizations(object):
 
         # re-evaluate
         self.model.build_system_matricies(self.model.parameters['inital_params_yg'], 
-                                          self.model.parameters['inital_params_k_ya'], 
-                                          self.model.parameters['inital_params_m_ya'])
+                                          self.model.parameters['params_k_ya'], 
+                                          self.model.parameters['params_m_ya'])
 
         self.model.eigenvalue_solve()
 
@@ -319,8 +319,8 @@ class Optimizations(object):
 
         # re-evaluate
         self.model.build_system_matricies(self.model.parameters['inital_params_yg'], 
-                                          self.model.parameters['inital_params_k_ya'], 
-                                          self.model.parameters['inital_params_m_ya'])
+                                          self.model.parameters['params_k_ya'], 
+                                          self.model.parameters['params_m_ya'])
 
         self.model.eigenvalue_solve()
         weights = [0]
@@ -331,39 +331,48 @@ class Optimizations(object):
 
 # TORSION OPTIMIZATIONS
     
-    def eigen_ya_stiffness_opt(self):
-        if self.model.parameters['inital_params_k_ya'] != [0.0,0.0]:
+    def eigen_ya_stiffness_opt(self, which = 'kya'):
+        ''' 
+        which: 'kya' or 'kga'
+        ''' 
+        if self.model.parameters['params_k_ya'] != [0.0,0.0]:
             raise Exception('inital parameters of ya are not 0 - check if sensible')
 
         eigenmodes_target_y = self.model.eigenmodes['y'][self.consider_mode]*0.9
-        eigenmodes_target_a = np.linspace(0, eigenmodes_target_y[-1] * 0.1, eigenmodes_target_y.shape[0]) # 0.12 is the ratio of caarc tip a / tip y 1st mode
+        eigenmodes_target_a = np.linspace(0, eigenmodes_target_y[-1] * 0.012, eigenmodes_target_y.shape[0]) # 0.12 is the ratio of caarc tip a / tip y 1st mode
         eigenfreq_target = self.model.eigenfrequencies[self.consider_mode]
 
         self.inital = {'y':self.model.eigenmodes['y'][self.consider_mode],'a':self.model.eigenmodes['a'][self.consider_mode]}
         self.targets = {'y':eigenmodes_target_y, 'a':eigenmodes_target_a}
 
-        self.optimizable_function = partial(self.obj_func_eigen_ya_stiffnes, self.consider_mode, eigenmodes_target_y, eigenmodes_target_a, eigenfreq_target)
+        self.optimizable_function = partial(self.obj_func_eigen_ya_stiffnes, self.consider_mode, 
+                                            eigenmodes_target_y, eigenmodes_target_a, eigenfreq_target,
+                                            which)
 
         bounds = None
         method_scalar = 'brent'
-        bounds = ((0.001, 1),(0.001, 1))#,(0.001, 100))
+        #bounds = (0.001, 100)#,(0.001, 100))#,(0.001, 100))
         if bounds:
             method_scalar = 'bounded'
 
-        #res_scalar = minimize_scalar(self.optimizable_function, method=method, bounds= bounds, options={'gtol': 1e-6, 'disp': True})
+        res_scalar = minimize_scalar(self.optimizable_function, method=method_scalar, bounds= bounds, tol=1e-6)
         # SLSQP works with bounds
-        res_scalar = minimize(self.optimizable_function, x0= 0.0, method=self.method, bounds=bounds, tol=1e-3, options={'gtol': 1e-3, 'ftol': 1e-3, 'disp': True})
+        #res_scalar = minimize(self.optimizable_function, x0= 0.0, method=self.method, bounds=bounds, tol=1e-6, options={'disp': True})
 
         # SLSQP works with constraints as well
         #res_scalar = minimize(self.optimizable_function, x0 = init_guess, method='SLSQP', constraints=cnstrts, tol=1e-3, options={'gtol': 1e-3, 'ftol': 1e-3, 'disp': True})
 
         #print( 'final F: ', str(self.optimizable_function))
 
-        self.final_design_variable = res_scalar.x
+        #self.optimized_design_params = res_scalar.x
+        if which == 'k_ya':
+            self.optimized_design_params = {'params_k_ya':[res_scalar.x, 0.0]}
+        elif which == 'k_ga':
+            self.optimized_design_params = {'params_k_ya':[0.0, res_scalar.x]}
 
-        print('\noptimization result for design variable:', res_scalar.x)
+        print('\noptimization result for design variable k'+which+':', res_scalar.x)
 
-    def obj_func_eigen_ya_stiffnes(self, mode_id, eigenmodes_target_y, eigenmodes_target_a, eigenfreq_target, design_param):
+    def obj_func_eigen_ya_stiffnes(self, mode_id, eigenmodes_target_y, eigenmodes_target_a, eigenfreq_target, which, design_param):
         if isinstance(design_param, np.ndarray):
             if design_param.size == 2:
                 if design_param[0] == design_param[1]:
@@ -372,8 +381,11 @@ class Optimizations(object):
                     raise Exception('design parameter has 2 variables that differ')
             else:
                 design_param = design_param[0]
+        if which == 'kya':
+            self.model.build_system_matricies(params_k_ya=[design_param, 0.0]) 
+        elif which == 'kga':
+            self.model.build_system_matricies(params_k_ya=[0.0, design_param])
 
-        self.model.build_system_matricies(params_k_ya=[design_param, 0.0]) # mass params not working yet -> positive definit matrix
         self.model.eigenvalue_solve()
 
         eigenmodes_cur = self.model.eigenmodes
@@ -381,24 +393,45 @@ class Optimizations(object):
 
         f1 = utils.evaluate_residual(eigenmodes_cur['y'][mode_id], eigenmodes_target_y)
         f2 = utils.evaluate_residual(eigenmodes_cur['a'][mode_id], eigenmodes_target_a)
-        f3 = utils.evaluate_residual([eigenfreq_cur], [eigenfreq_target])
+        #f3 = utils.evaluate_residual([eigenfreq_cur], [eigenfreq_target])
 
-        weights = [0.33,0.33,0.33]
+        weights = self.weights
 
-        f = weights[0]*f1**2 + weights[1]*f2**2 + weights[2] * f3**2
+        f = weights[0]*f1**2 + weights[1]*f2**2# + weights[2] * f3**2
 
         #print('F: ', str(f))
 
         return f
 
 
-    def eigen_vectorial_k_ya_opt(self):
+    def eigen_vectorial_ya_opt(self, include_mass = True):
         '''
         optimizing the stiffness coupling entries
             K_ya
-            k_ga
+            K_ga
+        and the mass coupling entries
+            M_ya, M_yg (both with the same parameter )
         ''' 
-        if self.model.parameters['inital_params_k_ya'] != [0.0,0.0]:
+        # defining bounds
+        # NOTE: k_ya takes lower bounds than 0.1
+        bnds = self.opt_params['bounds']
+        init_guess = self.opt_params['init_guess']#,1.0]#[0.0, 0.0,0.0]#[0.12, 0.15, 0.17] 
+        self.n_iter = 0
+        self.optimization_history = {'iter':[0],'func':[], 'k_ya':[init_guess[0]], 'k_ga':[init_guess[1]]}
+        if include_mass:
+            self.optimization_history['m_ya_ga'] = [init_guess[2]]
+        def get_callback(x):
+            self.n_iter += 1
+            self.optimization_history['func'].append(self.optimizable_function(x))
+            self.optimization_history['k_ya'].append(x[0])
+            self.optimization_history['k_ga'].append(x[1])
+            self.optimization_history['iter'].append(self.n_iter)
+            if include_mass:
+                self.optimization_history['m_ya_ga'].append(x[2])
+        def print_callback(x):
+            print (x[0], x[1], x[2], self.optimizable_function(x))
+
+        if self.model.parameters['params_k_ya'] != [0.0,0.0]:
             raise Exception('inital parameters of ya are not 0 - check if the targets are still sensible')
 
         eigenmodes_target_y = self.model.eigenmodes['y'][self.consider_mode]*0.9
@@ -408,13 +441,18 @@ class Optimizations(object):
 
         self.inital = {'y':self.model.eigenmodes['y'][self.consider_mode],'a':self.model.eigenmodes['a'][self.consider_mode]}
         self.targets = {'y':eigenmodes_target_y, 'a':eigenmodes_target_a}
-        
-        self.optimizable_function = partial(self.obj_func_eigen_vectorial_k_ya, self.consider_mode, eigenmodes_target_y, eigenmodes_target_a, eigenfreq_target)
 
-        # defining bounds
-        # NOTE: k_ya takes lower bounds than 0.1
-        bnds = self.opt_params['bounds']
-        init_guess = self.opt_params['init_guess']#,1.0]#[0.0, 0.0,0.0]#[0.12, 0.15, 0.17] 
+        
+        self.optimizable_function = partial(self.obj_func_eigen_vectorial_k_ya, self.consider_mode, eigenmodes_target_y, eigenmodes_target_a, eigenfreq_target, include_mass)
+        self.optimization_history['func'].append(self.optimizable_function(init_guess))
+        if not include_mass:
+            print ('not optimizing the mass entries')
+            if len(bnds) != 2:
+                bnds = bnds[:2]
+                print ('\n  dropped the 3rd bound given')
+            if len(init_guess) != 2:
+                init_guess = init_guess[:2]
+                print ('  dropped the 3rd initial guess given\n')
 
         # alternatively inequality constraints
         cnstrts = [{'type': 'ineq', 'fun': lambda x: 100 - x[0]},
@@ -429,9 +467,15 @@ class Optimizations(object):
                               x0 = init_guess,
                               method=self.method,
                               bounds=bnds, 
+                              callback=get_callback,
                               options={'ftol': 1e-6, 'disp': True})
 
-        self.optimized_design_params = res_scalar.x
+        evals = [0,10,10]
+        print ('func with manual opt params: ', self.optimizable_function(evals))
+
+        self.optimized_design_params = {'params_k_ya':res_scalar.x[:2]}
+        if include_mass:
+            self.optimized_design_params['params_m_ya'] = [res_scalar.x[-1],res_scalar.x[-1],0.0]
         digits = 5
         # SLSQP works with constraints as well
         #res_scalar = minimize(self.optimizable_function, x0 = init_guess, method='SLSQP', constraints=cnstrts, tol=1e-3, options={'gtol': 1e-3, 'ftol': 1e-3, 'disp': True})
@@ -439,11 +483,16 @@ class Optimizations(object):
         print('optimized parameters:')
         print ('  k_ya:', round(res_scalar.x[0],digits), 'absolute:', round(self.model.comp_k[1][3]))
         print ('  k_ga:', round(res_scalar.x[1],digits), 'absolute:', round(self.model.comp_k[3][5]))
-        print ('  m_ya:', round(res_scalar.x[2],digits+4), 'absolute m_ya_11:', round(self.model.comp_m[1][3]), 'absolute m_ya_12:', round(self.model.comp_m[1][9]))
+        if include_mass:
+            print ('  m_ya:', round(res_scalar.x[2],digits+4), 'absolute m_ya_11:', round(self.model.comp_m[1][3]), 'absolute m_ya_12:', round(self.model.comp_m[1][9]))
 
-    def obj_func_eigen_vectorial_k_ya(self, mode_id, eigenmodes_target_y, eigenmodes_target_a, eigenfreq_target, design_params):
+    def obj_func_eigen_vectorial_k_ya(self, mode_id, eigenmodes_target_y, eigenmodes_target_a, eigenfreq_target, include_mass, design_params):
+        
+        if include_mass:
+            self.model.build_system_matricies(params_k_ya = design_params[:2], params_m_ya=[design_params[-1],design_params[-1],0])
+        else:
+            self.model.build_system_matricies(params_k_ya = design_params)
 
-        self.model.build_system_matricies(params_k_ya = design_params[:2], params_m_ya=[design_params[-1],design_params[-1],0])
         self.model.eigenvalue_solve()
 
         eigenmodes_cur = self.model.eigenmodes
@@ -457,7 +506,7 @@ class Optimizations(object):
 
         gamma = 2
         components = [weights[0]*f1**gamma, weights[1]*f2**gamma, weights[2]*f3**gamma]
-        f = sum(components *1)
+        f = sum(components)
 
         # print('Design params: ', ', '.join([str(val) for val in design_params]))
         # print('Components: ', ', '.join([str(val) for val in components]))

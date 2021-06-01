@@ -1,4 +1,5 @@
 import numpy as np 
+import global_definitions as GD
 
 class BernoulliElement(object):
 
@@ -78,18 +79,12 @@ class BernoulliElement(object):
         # ===========================
 
             k_aa = self.G * self.It / self.L 
-            k_ya = -omega * 12.0 * self.E * self.I_param / self.L**3 # from eccentricity approach to have reasonable scales of start e * k_yy_11
+            k_ya = omega * 12.0 * self.E * self.I_param / self.L**3 # from eccentricity approach to have reasonable scales of start e * k_yy_11
 
             k_aa_11 = k_aa
             
-            # using signs as it is done by Frias
-            k_ya_11 = -k_ya
-            k_ya_12 =  k_ya
 
-            k_el_ya = np.array([[k_aa_11, k_ya_12,],
-                                [k_ya_12, k_ya_11]])
-
-            k_ga = omega1 * 6.0 * self.E * self.I_param  / self.L**2
+            k_ga = omega1 * 6.0 * self.E * self.I_param  / self.L**2 
 
         if self.dim == '2D':
             # NOTE this is without axial stuff
@@ -97,16 +92,16 @@ class BernoulliElement(object):
         
         elif self.dim == '3D':
             k_el = np.array([[k_el_x[0][0], 0., 0., 0., 0., 0., k_el_x[0][1], 0., 0., 0., 0., 0.],
-                             [0., k_el_yg[0][0], 0., -k_ya, 0., k_el_yg[0][1], 0., k_el_yg[0][2], 0., k_ya, 0., k_el_yg[0][3]],
+                             [0., k_el_yg[0][0], 0., k_ya, 0., k_el_yg[0][1], 0., k_el_yg[0][2], 0., -k_ya, 0., k_el_yg[0][3]],
                              [0., 0., k_el_zb[0][0], 0., k_el_zb[0][1], 0., 0., 0., k_el_zb[0][2], 0., k_el_zb[0][3],0.],
-                             [0., -k_ya, 0., k_aa_11, 0., -k_ga, 0., k_ya, 0., -k_aa_11, 0., k_ga],
+                             [0., k_ya, 0., k_aa_11, 0., -k_ga, 0., -k_ya, 0., -k_aa_11, 0., k_ga],
                              [0., 0., k_el_zb[0][1], 0., k_el_zb[1][1], 0., 0., 0., k_el_zb[1][2], 0., k_el_zb[1][3],0.],
                              [0., k_el_yg[0][1], 0., -k_ga, 0., k_el_yg[1][1], 0., k_el_yg[1][2], 0., k_ga, 0.,k_el_yg[1][3]],
 
                              [k_el_x[1][0], 0., 0., 0., 0., 0., k_el_x[1][1], 0., 0., 0., 0., 0.],
-                             [0., k_el_yg[0][2], 0., k_ya, 0., k_el_yg[1][2], 0., k_el_yg[2][2], 0., -k_ya, 0., k_el_yg[2][3]],
+                             [0., k_el_yg[0][2], 0., -k_ya, 0., k_el_yg[1][2], 0., k_el_yg[2][2], 0., k_ya, 0., k_el_yg[2][3]],
                              [0., 0., k_el_zb[0][2],  0., k_el_zb[1][2], 0., 0., 0., k_el_zb[2][2], 0., k_el_zb[2][3],0.],
-                             [0., k_ya, 0., -k_aa_11, 0., k_ga, 0., -k_ya,  0., k_aa_11, 0., -k_ga],
+                             [0., -k_ya, 0., -k_aa_11, 0., k_ga, 0., k_ya,  0., k_aa_11, 0., -k_ga],
                              [0., 0., k_el_zb[0][3], 0., k_el_zb[1][3], 0., 0., 0., k_el_zb[2][3], 0., k_el_zb[3][3],0.],
                              [0., k_el_yg[0][3], 0., k_ga, 0., k_el_yg[1][3], 0., k_el_yg[2][3], 0., -k_ga, 0.,k_el_yg[3][3]]])
 
@@ -276,7 +271,7 @@ class BernoulliElement(object):
             
             # coupling of displacement y with alpha a
 
-            m_ya = -m_const  / 10
+            m_ya = m_const  / 10 
             
             m_ya_11 = 7/20 * m_ya * psi1 # see reason for that choice taken form frias but basically to have a reaonable scale 
             m_ya_12 = 3/20 * m_ya * psi2 # seems to be smaler than m_ya_11 maybe this could be taken into accoutn
@@ -291,7 +286,7 @@ class BernoulliElement(object):
             # TORSION COUPLING - BENDING AROUND Y (Z-DSIP; B-ROT)
             # ===================================================
 
-            m_za = m_const * 0
+            m_za = -m_const * 0
 
             m_za_11 = 7/20 * m_za * psi1 
             m_za_12 = 3/20 * m_za * psi2
@@ -345,3 +340,4 @@ class BernoulliElement(object):
         # assuming equivalency with circle
         self.Ip = self.Iy + self.Iz
 
+    
