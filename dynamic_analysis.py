@@ -130,14 +130,14 @@ class DynamicAnalysis(object):
         # TODO check if concept of comp - computational model is robust and generic enough
         self.comp_m = np.copy(self.structure_model.comp_m)
         self.comp_k = np.copy(self.structure_model.comp_k)
-        self.comp_b = np.zeros(self.comp_k.shape)
-        #self.comp_b = np.copy(self.structure_model.comp_b)
+        #self.comp_b = np.zeros(self.comp_k.shape)
+        self.comp_b = np.copy(self.structure_model.comp_b)
         # tranformation to the modal coordinates
         if self.transform_into_modal:
             self.comp_m = transform_into_modal_coordinates(
                 self.structure_model.eigen_modes_raw, self.comp_m, self.num_of_modes_considered)
-            # self.comp_b = transform_into_modal_coordinates(
-            #     self.structure_model.eigen_modes_raw, self.comp_b, self.num_of_modes_considered)
+            self.comp_b = transform_into_modal_coordinates(
+                self.structure_model.eigen_modes_raw, self.comp_b, self.num_of_modes_considered)
             self.comp_k = transform_into_modal_coordinates(
                 self.structure_model.eigen_modes_raw, self.comp_k, self.num_of_modes_considered)
 
@@ -202,7 +202,7 @@ class DynamicAnalysis(object):
             self.solver.acceleration, axis='row')
         # computing the reactions
         f1 = np.dot(self.structure_model.m, self.solver.acceleration)
-        f2 = np.dot(self.damping_dummy, self.solver.velocity)
+        f2 = np.dot(self.structure_model.b, self.solver.velocity)
         f3 = np.dot(self.structure_model.k, self.solver.displacement)
         self.solver.dynamic_reaction = self.force - f1 - f2 - f3
         #TODO : elastic support reaction computation

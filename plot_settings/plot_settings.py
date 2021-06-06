@@ -31,8 +31,8 @@ def get_params(w=16, h=10):
             #'text.latex.unicode': True,
             'figure.titlesize': 8,
             'figure.figsize': (width, height),
-            'figure.dpi': 80, # for showing!!
-            'figure.constrained_layout.use': True,
+            'figure.dpi': 300, # for showing!!
+            #'figure.constrained_layout.use': True,
             # SUBPLOTS
             # ************************
             # USE with the suplot_tool() to check which settings work the best
@@ -75,6 +75,9 @@ def get_params(w=16, h=10):
             'lines.linewidth': 0.7,
             'lines.markersize': 1,
             'lines.markerfacecolor': 'darkgrey',
+            # CONTOUR PLOTS
+            # **********************
+            #'contour.linewidth': 0.4, removed?!
             # TEXT
             # ***********************
             'mathtext.default': 'regular',

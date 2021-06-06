@@ -8,6 +8,7 @@ import warnings
 from bernoulli_element import BernoulliElement
 import utilities
 import global_definitions as GD
+from postprocess import Postprocess
 
 num_zero = 1e-15
 
@@ -36,6 +37,8 @@ class BeamModel(object):
                                     parameters['params_k_ya'], 
                                     parameters['params_m_ya'])
         
+        print ('\nafter matrix build ', 'K_yg', self.comp_k[1][5])
+        
         self.working_params = [] # can be used to track some mathematical errors 
         self.eigenvalue_solve()
 
@@ -46,18 +49,24 @@ class BeamModel(object):
 
             self.init_opt = Optimizations(self)
 
-            self.init_opt.adjust_sway_z_stiffness_for_target_eigenfreq(utilities.caarc_freqs[0], 
+            target_freqs = self.parameters['eigen_freqs']
+
+            self.init_opt.adjust_sway_z_stiffness_for_target_eigenfreq(target_freqs[0], 
                                                                         target_mode = 0,
                                                                         print_to_console=False)
 
-            self.init_opt.adjust_sway_y_stiffness_for_target_eigenfreq(utilities.caarc_freqs[1], 
+            self.init_opt.adjust_sway_y_stiffness_for_target_eigenfreq(target_freqs[1], 
                                                                     target_mode = 1,
                                                                     print_to_console=False)
 
 
-            self.init_opt.adjust_torsional_stiffness_for_target_eigenfreq(utilities.caarc_freqs[2],
+            self.init_opt.adjust_torsional_stiffness_for_target_eigenfreq(target_freqs[2],
                                                                         target_mode = 2,
-                                                                        print_to_console=False)
+                                                                        print_to_console=True)
+
+            # pst = Postprocess(False,False,False)
+            # pst.plot_objective_function_3D(self.init_opt,evaluation_space_x=[-55, 55, 0.5], evaluation_space_y=[-30, 80, 0.5])
+            # print ('\noptimized geometric properties')
 
             
 
@@ -99,6 +108,8 @@ class BeamModel(object):
 
         self.m = np.zeros((self.n_nodes * self.n_dofs_node,
                             self.n_nodes * self.n_dofs_node))
+        
+        
 
         for element in self.elements:
 
@@ -117,8 +128,12 @@ class BeamModel(object):
             self.m[start: end, start: end] += m_el
 
         self.opt_params_mass_ya = params_m_ya
+
         self.comp_k = self.apply_bc_by_reduction(self.k)
         self.comp_m = self.apply_bc_by_reduction(self.m)
+        
+        self.b = self.get_damping()
+        self.comp_b = self.apply_bc_by_reduction(self.b)
 
 # # BOUNDARY CONDITIONS
 
@@ -185,25 +200,25 @@ class BeamModel(object):
         self.eigenmodes as a dictionary with the dof as key and list as values 
         list[i] -> mode id 
         '''
-        self.eigen_values_raw, self.eigen_modes_raw = linalg.eigh(self.comp_k, self.comp_m)
-        # try:
-        #     self.eigen_values_raw, self.eigen_modes_raw = linalg.eigh(self.comp_k, self.comp_m)
-        #     self.working_params.append(self.opt_params_mass_ya)
-        # except np.linalg.LinAlgError:
-        #     #print ('Mass matrix is not positive definite for m_ya params:')
-        #     #print (self.opt_params_mass_ya)
-        #     #raise Exception('Linalg Error')
-        #     return 0
+        #self.eigen_values_raw, self.eigen_modes_raw = linalg.eigh(self.comp_k, self.comp_m)
+        try:
+            self.eigen_values_raw, self.eigen_modes_raw = linalg.eigh(self.comp_k, self.comp_m)
+            #self.working_params.append(self.opt_params_mass_ya)
+        except np.linalg.LinAlgError:
+            #print ('Mass matrix is not positive definite for m_ya params:')
+            #print (self.opt_params_mass_ya)
+            #raise Exception('Linalg Error')
+            return 0
 
         # if np.any(self.eigen_values_raw < 0):
         #     odds = self.eigen_values_raw < 0.0
         #     if len(self.eigen_values_raw[odds]) > 1:
         #         print (self.eigen_values_raw[odds])
 
-        eig_values = np.sqrt(np.real(self.eigen_values_raw))
+        self.eig_values = np.sqrt(np.real(self.eigen_values_raw))
         
 
-        self.eigenfrequencies = eig_values / 2. / np.pi #rad/s
+        self.eigenfrequencies = self.eig_values / 2. / np.pi #rad/s
         self.eig_periods = 1 / self.eigenfrequencies
 
         gen_mass = np.matmul(np.matmul(np.transpose(self.eigen_modes_raw), self.comp_m), self.eigen_modes_raw)
@@ -222,8 +237,8 @@ class BeamModel(object):
         if not is_identiy:
             return 0
 
-        else:
-            self.working_params.append(self.opt_params_mass_ya)
+        # else:
+        #     self.working_params.append(self.opt_params_mass_ya)
 
         self.eigenmodes = {}
         for dof in self.dof_labels:
@@ -237,18 +252,38 @@ class BeamModel(object):
                 self.eigenmodes[dof][i][1:] = self.eigen_modes_raw[j:,i][::len(self.dof_labels)]
 
         self.eigenmodes = utilities.check_and_flip_sign_dict(self.eigenmodes)
+
+        self.eig_freqs_sorted_indices = np.argsort(self.eigenfrequencies)
         
-    def static_analysis_solve(self):
+    def static_analysis_solve(self, apply_mean_dynamic = True, direction = 'y'):
         ''' 
         static load so far defaults as tip load in y direction
         TODO: include passing a load vector
+        if apply_mean_dynamic: the dynamic load file is taken and at each point the mean magnitude
+        direction: if 'all' all load directions are applied
         ''' 
         load_vector = np.zeros(self.n_nodes*self.n_dofs_node)
-        load_vector[self.load_id] = self.parameters['static_load_magnitude']
+        if apply_mean_dynamic:
+            dyn_load = np.load(self.parameters['dynamic_load_file'])
+            if direction == 'all':
+                load_vector = np.apply_along_axis(np.mean, 1, dyn_load)
+            else:
+                dir_id = GD.dof_lables['3D'].index(direction)
+                mean_load = np.apply_along_axis(np.mean, 1, dyn_load)[dir_id::GD.n_dofs_node['3D']]
+                load_vector[dir_id::GD.n_dofs_node['3D']] = mean_load
+            
+            # for i in range(6):GD.n_dofs_node['3D']*self.n_nodes
+            #     plt.plot(mean_load[i:len(mean_load):6], np.arange(len(mean_load)/6), label= GD.dof_lables['3D'][i])
+            # plt.plot(mean_load, np.arange(len(mean_load)))
+            # plt.legend()
+            # plt.show()
+        else:
+            
+            load_vector[self.load_id] = self.parameters['static_load_magnitude']
 
         self.static_deformation = {}
 
-        load = self.apply_bc_by_reduction(self.load_vector, axis='row_vector')
+        load = self.apply_bc_by_reduction(load_vector, axis='row_vector')
 
         #missing ground node -> get bc by extension
         static_result = np.linalg.solve(self.comp_k, load)
@@ -264,9 +299,16 @@ class BeamModel(object):
         ''' 
 
         if self.optimize_frequencies_init:
+            print ('\nupdating:')
             for param, val in self.init_opt.opt_geometric_props.items():
-                self.parameters[param] = val[0]
+                if param == 'Ip':
+                    init = self.elements[0].Ip
+                else:
+                    init = self.parameters[param]
 
+                print ('    ',param, 'from', round(init), 'to',round(val[0]), 'increasing by:', utilities.increasing_by(init, val[0]), '%')
+                self.parameters[param] = val[0]
+                
         if optimization_results:
             for param, val in optimization_results.items():
                 self.parameters[param] = list(val)
@@ -300,3 +342,29 @@ class BeamModel(object):
         T[start:end, start:end] = T_transform_part_node2
                                     
         return T
+
+
+    def get_damping(self):
+        """
+        Calculate damping b based upon the Rayleigh assumption
+        using the first 2 eigemodes - here generically i and i
+        """
+
+        mode_i = 0
+        mode_j = 1
+        zeta_i = self.parameters['damping_coeff']
+        zeta_j = zeta_i
+
+        self.eigenvalue_solve()
+
+        self.rayleigh_coefficients = np.linalg.solve(0.5 *
+                                                     np.array(
+                                                         [[1 / self.eig_values[self.eig_freqs_sorted_indices[mode_i]],
+                                                           self.eig_values[self.eig_freqs_sorted_indices[mode_i]]],
+                                                          [1 / self.eig_values[self.eig_freqs_sorted_indices[mode_j]],
+                                                           self.eig_values[self.eig_freqs_sorted_indices[mode_j]]]]),
+                                                     [zeta_i, zeta_j])
+
+        # return back the whole matrix - without BCs applied
+        return self.rayleigh_coefficients[0] * self.m + self.rayleigh_coefficients[1] * self.k
+

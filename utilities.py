@@ -26,6 +26,15 @@ def evaluate_residual(a_cur, a_tar):
     # print()
     return residual
 
+def cm2inch(value):
+    return value/2.54
+    
+def increasing_by(val_old, val_new):
+    ''' 
+    returns the increase in % from the origin = old
+    ''' 
+    increase = (val_new - val_old)/val_old * 100
+    return round(increase,2)
 
 def check_and_flip_sign_dict(eigenmodes_dict):
     '''
@@ -118,8 +127,35 @@ def save_optimized_beam_parameters(opt_beam_model, fname):
 
 def prepare_string_for_latex(string):
     if '_' in string:
-        return string.replace('_','')
+        var, label = string.split('_')[0], string.split('_')[1]
+        latex = r'${}$'.format(var) + r'$_{{{}}}$'.format(label)
+        #return string.replace('_','')
+        return latex
     else:
         return string
 
 # # DYNAMIC ANALYSIS
+def get_fft(given_series, sampling_freq):
+    '''
+    The function get_fft estimates the Fast Fourier transform of the given signal 
+    sampling_freq = 1/dt
+    '''
+
+    signal_length=len(given_series)
+
+    freq_half =  np.arange(0, 
+                           sampling_freq/2 - sampling_freq/signal_length + sampling_freq/signal_length, 
+                           sampling_freq/signal_length)
+
+    # single sided fourier
+    series_fft = np.fft.fft(given_series)
+    series_fft = np.abs(series_fft[0:int(np.floor(signal_length/2))])/np.floor(signal_length/2)  
+    
+    max_length = len(freq_half)
+    if max_length < len(series_fft):
+        max_length = len(series_fft)
+    
+    freq_half = freq_half[:max_length-1]
+    series_fft = series_fft[:max_length-1]
+    
+    return freq_half, series_fft

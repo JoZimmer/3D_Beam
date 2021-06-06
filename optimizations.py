@@ -58,7 +58,7 @@ class Optimizations(object):
 
     def obj_func_eig_scalar(self, mode_id, eigenmodes_target, design_param):
 
-        self.model.build_system_matricies([design_param, 1.0, 1.0])
+        self.model.build_system_matricies(params_yg=[design_param, 1.0, 1.0])
         self.model.eigenvalue_solve()
 
         eigenmodes_cur = utils.check_and_flip_sign_dict(self.model.eigenmodes)
@@ -182,9 +182,9 @@ class Optimizations(object):
         self.opt_geometric_props['Iy'] = [min_res.x * iy_i for iy_i in initial_iy]
 
         if print_to_console:
-            print('INITIAL iy:', ', '.join([str(val) for val in initial_iy]))
+            print('INITIAL Iy:', ', '.join([str(val) for val in initial_iy]))
             print()
-            print('OPTIMIZED iy: ', ', '.join([str(opt_fctr * val) for val in initial_iy]))
+            print('OPTIMIZED Iy: ', ', '.join([str(opt_fctr * val) for val in initial_iy]))
             
             print()
             print('FACTOR: ', opt_fctr)
@@ -283,6 +283,8 @@ class Optimizations(object):
                                             initial_it,
                                             initial_ip)
 
+        self.weights = [0.0,0.0,0.0]
+
         # NOTE: some additional reduction factor so that ip gets changes less
 
         init_guess = (1.0, 1.0)
@@ -300,14 +302,14 @@ class Optimizations(object):
                                        init_guess,
                                        method='L-BFGS-B',
                                        bounds=(bnds_it, bnds_ip),
-                                       options={'disp':False})
+                                       options={'disp':True})
 
         # returning only one value!
         opt_fctr = min_res.x
         self.opt_geometric_props['It'] = [min_res.x[0] * it_i for it_i in initial_it]
         self.opt_geometric_props['Ip'] = [min_res.x[1] * ip_i for ip_i in initial_ip]
         if print_to_console:
-            print('FACTORS It, Ip: ', ', '.join([str(val) for val in opt_fctr]))
+            print('\nFACTORS It, Ip: ', ', '.join([str(val) for val in opt_fctr]))
             print ('final frequency: ', self.model.eigenfrequencies[target_mode])
             print()
 
@@ -365,9 +367,9 @@ class Optimizations(object):
         #print( 'final F: ', str(self.optimizable_function))
 
         #self.optimized_design_params = res_scalar.x
-        if which == 'k_ya':
+        if which == 'kya':
             self.optimized_design_params = {'params_k_ya':[res_scalar.x, 0.0]}
-        elif which == 'k_ga':
+        elif which == 'kga':
             self.optimized_design_params = {'params_k_ya':[0.0, res_scalar.x]}
 
         print('\noptimization result for design variable k'+which+':', res_scalar.x)
@@ -397,14 +399,14 @@ class Optimizations(object):
 
         weights = self.weights
 
-        f = weights[0]*f1**2 + weights[1]*f2**2# + weights[2] * f3**2
+        f = weights[0]*f1**2 + weights[1]*f2**2 # + weights[2] * f3**2
 
         #print('F: ', str(f))
 
         return f
 
 
-    def eigen_vectorial_ya_opt(self, include_mass = True):
+    def eigen_vectorial_ya_opt(self):
         '''
         optimizing the stiffness coupling entries
             K_ya
@@ -412,6 +414,9 @@ class Optimizations(object):
         and the mass coupling entries
             M_ya, M_yg (both with the same parameter )
         ''' 
+
+        include_mass = self.opt_params['include_mass']
+
         # defining bounds
         # NOTE: k_ya takes lower bounds than 0.1
         bnds = self.opt_params['bounds']
@@ -422,7 +427,7 @@ class Optimizations(object):
             self.optimization_history['m_ya_ga'] = [init_guess[2]]
         def get_callback(x):
             self.n_iter += 1
-            self.optimization_history['func'].append(self.optimizable_function(x))
+            #self.optimization_history['func'].append(self.optimizable_function(x))
             self.optimization_history['k_ya'].append(x[0])
             self.optimization_history['k_ga'].append(x[1])
             self.optimization_history['iter'].append(self.n_iter)
@@ -471,11 +476,17 @@ class Optimizations(object):
                               options={'ftol': 1e-6, 'disp': True})
 
         evals = [0,10,10]
-        print ('func with manual opt params: ', self.optimizable_function(evals))
+        #print ('func with manual opt params: ', self.optimizable_function(evals))
 
         self.optimized_design_params = {'params_k_ya':res_scalar.x[:2]}
         if include_mass:
             self.optimized_design_params['params_m_ya'] = [res_scalar.x[-1],res_scalar.x[-1],0.0]
+
+        #self.optimization_history['func'].append(self.optimizable_function(resx))
+        self.optimization_history['k_ya'].append(res_scalar.x[0])
+        self.optimization_history['k_ga'].append(res_scalar.x[1])
+        self.optimization_history['iter'].append(self.n_iter+1)
+
         digits = 5
         # SLSQP works with constraints as well
         #res_scalar = minimize(self.optimizable_function, x0 = init_guess, method='SLSQP', constraints=cnstrts, tol=1e-3, options={'gtol': 1e-3, 'ftol': 1e-3, 'disp': True})
