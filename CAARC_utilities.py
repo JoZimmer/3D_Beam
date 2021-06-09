@@ -9,7 +9,7 @@ from plot_settings import plot_settings
 
 COLORS = ['tab:blue', 'tab:orange', 'tab:green', 'tab:red']
 
-params = plot_settings.get_params(w=7.3, h=5.2)
+#params = plot_settings.get_params(w=7.3, h=5.2)
 
 
 dest_folder = 'plots_new\\CAARC'

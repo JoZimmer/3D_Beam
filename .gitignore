@@ -10,3 +10,5 @@
 *.cpython-38.pyc
 *.npy
 *.svg
+*.eps
+*.pgf

@@ -206,3 +206,61 @@ class DynamicAnalysis(object):
         f3 = np.dot(self.structure_model.k, self.solver.displacement)
         self.solver.dynamic_reaction = self.force - f1 - f2 - f3
         #TODO : elastic support reaction computation
+
+    def output_kinetic_energy(self, total = False):
+        ''' 
+        - potentielle energie eines mechanischen Systems ist durch die lage gegeben: also Feder wird gespannt -> Epot ist die Fläche unter der Last- Verformungskurve 
+        - kinetische energie wie üblich 1/2 m v² 
+        ''' 
+        print("\nCalculate modal kinetic energy...")       
+        
+        m = self.structure_model.m  # which mass matrix ? lumped masses ?
+        k = self.structure_model.k  
+        vel = self.solver.velocity
+        disp = self.solver.displacement
+
+        self.kin_energy = np.zeros(len(self.array_time))
+        self.el_energy = np.zeros(len(self.array_time))
+
+        pre = 'KINETIC '
+        for i in range(0,len(self.array_time)):
+            self.kin_energy[i] = 0.5 * np.dot(np.transpose(vel[:,i]),np.dot(m,vel[:,i]))
+            if total:
+                pre = 'TOTAL '
+                self.el_energy[i] = 0.5 * np.dot(np.transpose(disp[:,i]),np.dot(k,disp[:,i]))
+
+
+        self.sum_energy = self.kin_energy + self.el_energy
+
+        self.sum_energy_over_time = np.sum(np.multiply(self.sum_energy, self.dt/self.array_time[-1]))
+
+        ## EXPLIZIT WAY
+            # vel = {}
+
+            # for idx, label in zip(list(range(GD.DOFS_PER_NODE[self.structure_model.domain_size])),
+            #                       GD.DOF_LABELS[self.structure_model.domain_size]):
+            #     start = idx
+            #     step = GD.DOFS_PER_NODE[self.structure_model.domain_size]
+            #     stop = self.solver.displacement.shape[0] + idx - step
+            #     vel[label] = self.solver.velocity[start:stop +1:step][:]
+
+            # # TODO: make robust for 2d and 3d, here hard coded for 3d
+            # # here taking sqrt
+            # vel_magn = np.power(np.power(vel['y'],2) + np.power(vel['z'],2), 0.5)
+
+            # # here power of previous sqrt
+            # kin_energy = 0.5 * np.dot(self.structure_model.parameters['m'],np.power(vel_magn,2))
+
+            # self.sum_energy = kin_energy #+ el_energy
+
+            # # first here introducing dt (integral) 
+            # # and division with total length of time to get a normed integral
+            # # could be extended to possible 
+            # sum_energy_over_time = np.sum(np.multiply(self.sum_energy, self.dt/self.array_time[-1]))
+
+        result_data = self.sum_energy
+
+        print ('\n  ' + pre + 'ENERGY sum over time:', round(self.sum_energy_over_time))
+
+        #return self.sum_energy, self.sum_over_time
+

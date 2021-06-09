@@ -37,7 +37,6 @@ class BeamModel(object):
                                     parameters['params_k_ya'], 
                                     parameters['params_m_ya'])
         
-        print ('\nafter matrix build ', 'K_yg', self.comp_k[1][5])
         
         self.working_params = [] # can be used to track some mathematical errors 
         self.eigenvalue_solve()
@@ -62,7 +61,7 @@ class BeamModel(object):
 
             self.init_opt.adjust_torsional_stiffness_for_target_eigenfreq(target_freqs[2],
                                                                         target_mode = 2,
-                                                                        print_to_console=True)
+                                                                        print_to_console=False)
 
             # pst = Postprocess(False,False,False)
             # pst.plot_objective_function_3D(self.init_opt,evaluation_space_x=[-55, 55, 0.5], evaluation_space_y=[-30, 80, 0.5])
@@ -271,12 +270,6 @@ class BeamModel(object):
                 dir_id = GD.dof_lables['3D'].index(direction)
                 mean_load = np.apply_along_axis(np.mean, 1, dyn_load)[dir_id::GD.n_dofs_node['3D']]
                 load_vector[dir_id::GD.n_dofs_node['3D']] = mean_load
-            
-            # for i in range(6):GD.n_dofs_node['3D']*self.n_nodes
-            #     plt.plot(mean_load[i:len(mean_load):6], np.arange(len(mean_load)/6), label= GD.dof_lables['3D'][i])
-            # plt.plot(mean_load, np.arange(len(mean_load)))
-            # plt.legend()
-            # plt.show()
         else:
             
             load_vector[self.load_id] = self.parameters['static_load_magnitude']
@@ -311,9 +304,11 @@ class BeamModel(object):
                 
         if optimization_results:
             for param, val in optimization_results.items():
+                init = self.parameters[param]
+                print ('    ',param, 'from', init, 'to',val, '(k_ya, kga)')#, 'increasing by:', utilities.increasing_by(init, val[0]), '%')
                 self.parameters[param] = list(val)
 
-        print('\nupdated optimized params')
+        print('\nupdated optimized parameters')
         return self
 # # EXTRA FUNCTIONS
 

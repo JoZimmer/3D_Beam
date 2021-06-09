@@ -1,5 +1,6 @@
 import numpy as np
 import json
+import os.path
 
 caarc_freqs = [0.231, 0.429, 0.536]
 # VALUES COPIED WITH FULL MATRICIES CALCULATED
@@ -38,7 +39,7 @@ def increasing_by(val_old, val_new):
 
 def check_and_flip_sign_dict(eigenmodes_dict):
     '''
-    flips the sign of y adn a deformation of modes to be positive at the first node after ground 
+    flips the sign of y and a deformation of modes to be positive at the first node after ground 
     dependend/coupled dofs are flip accordingly
     '''
 
@@ -119,20 +120,30 @@ def analytic_eigenmode_shapes(beam_model):
 
 
 def save_optimized_beam_parameters(opt_beam_model, fname):
-    f = open('optimized_parameters\\'+fname+'.json','w')
+    new = 'optimized_parameters\\'+fname+'.json'
+    if os.path.isfile(new):
+        print('WARNING', new, 'already exists!')
+        new = 'optimized_parameters\\'+fname+'_1.json'
+
+    f = open(new,'w')
     
     json.dump(opt_beam_model.parameters, f)
     f.close()
 
 
 def prepare_string_for_latex(string):
+    greek = {'ya':'y'+r'\alpha','ga':r'\gamma' + r'\alpha'}
     if '_' in string:
         var, label = string.split('_')[0], string.split('_')[1]
-        latex = r'${}$'.format(var) + r'$_{{{}}}$'.format(label)
+        latex = r'${}$'.format(var) + r'$_{{{}}}$'.format(greek[label])
         #return string.replace('_','')
         return latex
     else:
         return string
+
+    
+def join_whitespaced_string(string):
+    return string.replace(' ','_')
 
 # # DYNAMIC ANALYSIS
 def get_fft(given_series, sampling_freq):

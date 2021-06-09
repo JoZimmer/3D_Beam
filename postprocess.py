@@ -4,16 +4,19 @@ from scipy.optimize import curve_fit
 import matplotlib.pyplot as plt
 from matplotlib import cm
 import copy
+from os.path import join as os_join
 
 import utilities
 import global_definitions as GD
 import CAARC_utilities as caarc_utils
 
-dest_mode_results = 'plots_new\\eigenmode_results\\'
-dest_objective_func = 'plots_new\\objective_function\\'
-dest_1D_opt = 'plots_new\\ya_yg\\'
-dest_mass = 'plots_new\\mass_inclusion\\'
-dest_static = 'plots_new\\static_analysis\\'
+AB = 'CAARC_A' # 'CAARC_B'
+
+dest_mode_results = 'plots\\'+AB+'\\eigenmode_results\\'
+dest_objective_func = 'plots\\'+AB+'\\objective_function\\'
+dest_1D_opt = 'plots\\'+AB+'\\ya_yg\\'
+dest_mass = 'plots\\'+AB+'\\mass_inclusion\\'
+dest_static = 'plots\\'+AB+'\\static_analysis\\'
 
 dest_latex = 'C:\\Users\\Johannes\\LRZ Sync+Share\\MasterThesis\\Abgabe\\Text\\images\\'
 
@@ -40,7 +43,12 @@ class Postprocess(object):
     def plot_static_result(self,beam_model, init_deform = None, load_type = 'single' ,
                         dofs_to_plot = ['y'], analytic = False, do_rad_scale = True, save_suffix = ''):
 
-        fig, ax = plt.subplots(num='static results')
+        if not self.savefig or not self.savefig_latex:
+            title = 'static results ' + save_suffix
+        else:
+            title= None
+
+        fig, ax = plt.subplots(num=title )
 
         ax.plot(beam_model.nodal_coordinates['y0'],
                 beam_model.nodal_coordinates['x0'],
@@ -83,11 +91,7 @@ class Postprocess(object):
         ax.grid()
         ax.set_xlabel('deformation [m]')
         ax.set_ylabel('height [m]')
-        # if beam_model.shear_only:
-        #     variant = ' - shear_only'
-        # elif beam_model.decouple:
-        #     variant = ' - y & g decoupled'
-        # else:
+        ax.set_ylim(0)
         variant = ''
         ax.set_title('static displacement for ' + load_type + ' load' )
         if self.savefig:
@@ -98,7 +102,7 @@ class Postprocess(object):
 
     def plot_eigenmodes(self,beam_model,  fit = False, analytic = True, number_of_modes = 3):
         
-        fig, ax = plt.subplots(figsize=(5,2.2), num='eigenmode results')
+        fig, ax = plt.subplots( num='eigenmode results')#figsize=(5,2.2),
 
         ax.plot(beam_model.nodal_coordinates['x0'],
                 beam_model.nodal_coordinates['y0'],
@@ -152,7 +156,7 @@ class Postprocess(object):
     # # 3D
 
     def plot_eigenmodes_3D(self,beam_model, opt_targets = None , initial = None, opt_params=None,
-                            number_of_modes = 3, dofs_to_plot = ['y','z','a'],
+                            number_of_modes = 3, dofs_to_plot = ['y','z','a'], add_max_deform = True,
                             max_normed = True, do_rad_scale =False, include_caarc = False, use_caarc_fitted = False,
                             plot_weights_in_title = False, fig_title = '', filename_for_save = '0_no_name'):
 
@@ -173,7 +177,7 @@ class Postprocess(object):
                 c_modes = caarc_props['eigenmodes']
 
         if number_of_modes == 1:
-            fig, ax = plt.subplots(ncols = number_of_modes, figsize=(2,3.5), num='eigenmode results')
+            fig, ax = plt.subplots(ncols = number_of_modes,  num='eigenmode results')#figsize=(2,3.5),
             if not self.savefig and not self.savefig_latex:
                 fig.suptitle(fig_title)
 
@@ -199,15 +203,7 @@ class Postprocess(object):
                 if max_normed:
                     norm = 1/max(y)
                     c_norm = 1/max(c_y)
-                
-                if opt_targets:
-                    if dof in opt_targets.keys():
-                        y2 = opt_targets[dof] *scale
-                        ax.plot(y2*norm,
-                                    x,
-                                    label =  r'${}$'.format(greek[dof]) + r'$_{target}$',
-                                    linestyle = '--',
-                                    color = COLORS[d_i])
+
                 if initial:
                     if dof in initial.keys():
                         y3 = initial[dof]
@@ -216,10 +212,22 @@ class Postprocess(object):
                                     label =  r'${}$'.format(greek[dof]) + r'$_{inital}$',
                                     linestyle = ':',
                                     color = COLORS[d_i])
+                if opt_targets:
+                    if dof in opt_targets.keys():
+                        y2 = opt_targets[dof] *scale
+                        ax.plot(y2*norm,
+                                    x,
+                                    label =  r'${}$'.format(greek[dof]) + r'$_{target}$',
+                                    linestyle = '--',
+                                    color = COLORS[d_i])
+                
                 lab = greek[dof]
+                label = r'${}$'.format(greek[dof])
+                if add_max_deform:
+                    label += r'$_{max}:$' + r'${0:.2e}$'.format(max(y))
                 ax.plot(y*norm*scale,
                             x,
-                            label = r'${}$'.format(greek[dof]) + r'$_{max}:$' + r'${0:.2e}$'.format(max(y)),#'max: ' +
+                            label = label ,#'max: ' +
                             linestyle = '-',
                             color = COLORS[d_i])
                 if include_caarc:
@@ -229,17 +237,26 @@ class Postprocess(object):
                             linestyle = ':',
                             color = caarc_cols[d_i])
             ax.legend()
+            
             ax.grid()
             ax.set_ylim(bottom=0)
-            ax.set_xlabel(r'$deflection$')
+            ax.set_xlabel(r'$defl. \, [m]$')
+
+            #ax.set_yticklabels([])
             ax.set_ylabel(r'$x \, [m]$') 
 
             ratio = max(utilities.check_and_flip_sign_array(beam_model.eigenmodes['a'][0])) / max(utilities.check_and_flip_sign_array(beam_model.eigenmodes['y'][0]))
-            ax.plot(0,0, label = r'$\alpha_{max}/y_{max}: $' + str(round(ratio,3)), linestyle = 'None')    
-            ax.legend()
+            ratio_label = r'$\alpha_{max}/y_{max} = $' + str(round(ratio,3))
+
+            ax.legend(loc= 'lower right')
+
+            props = dict(boxstyle='round', facecolor='white', edgecolor = 'lightgrey', alpha=0.8)
+
+            # place a text box in upper left in axes coords
+            ax.text(0.12, 0.97, ratio_label, transform=ax.transAxes, verticalalignment='top', bbox=props)
 
         else:
-            fig, ax = plt.subplots(ncols = number_of_modes, sharey=True, figsize=(5,4), num='eigenmode results')
+            fig, ax = plt.subplots(ncols = number_of_modes, sharey=True,  num='eigenmode results')#figsize=(5,4),
             if not self.savefig and not self.savefig_latex:
                 fig.suptitle(fig_title)
 
@@ -269,14 +286,6 @@ class Postprocess(object):
                         norm = 1/max(y)
                         c_norm = 1/max(c_y)
                     if i == 0:
-                        if opt_targets:
-                            if dof in opt_targets.keys():
-                                y2 = opt_targets[dof]*scale
-                                ax[i].plot(y2*norm,#*scale,
-                                            x,
-                                            label = r'${}$'.format(greek[dof]) + r'$_{target}$',
-                                            linestyle = '--',
-                                            color = COLORS[d_i])
                         if initial:
                             if dof in initial.keys():
                                 y3 = initial[dof]
@@ -285,10 +294,21 @@ class Postprocess(object):
                                             label = r'${}$'.format(greek[dof]) + r'$_{initial}$',
                                             linestyle = ':',
                                             color = COLORS[d_i])
-                    
+                        if opt_targets:
+                            if dof in opt_targets.keys():
+                                y2 = opt_targets[dof]*scale
+                                ax[i].plot(y2*norm,#*scale,
+                                            x,
+                                            label = r'${}$'.format(greek[dof]) + r'$_{target}$',
+                                            linestyle = '--',
+                                            color = COLORS[d_i])
+                        
+                    label = r'${}$'.format(greek[dof])
+                    if add_max_deform:
+                        label += r'$_{max}:$' + r'${0:.2e}$'.format(max(y))
                     ax[i].plot(y*norm*scale,
                                 x,
-                                label = r'${}$'.format(greek[dof]) + r'$_{max}:$ ' + r'${0:.2e}$'.format(max(y)),
+                                label = label,
                                 linestyle = '-',
                                 color = COLORS[d_i])
 
@@ -302,13 +322,23 @@ class Postprocess(object):
                 ax[i].legend(loc = 'lower right')
                 ax[i].grid()
                 ax[i].set_ylim(bottom=0)
-                ax[i].set_xlabel(r'$deflection$')
+                ax[i].set_xlabel(r'$defl. \, [m] $')
                 ax[0].set_ylabel(r'$x \, [m]$') 
 
             ratio = max(utilities.check_and_flip_sign_array(beam_model.eigenmodes['a'][0])) / max(utilities.check_and_flip_sign_array(beam_model.eigenmodes['y'][0]))
-            ax[0].plot(0,0, label = r'$\alpha_{max}/y_{max} = $' + str(round(ratio,3)), linestyle = 'None')    
+            ratio_label = r'$\alpha_{max}/y_{max} = $' + str(round(ratio,3))
+
+            # ratio_legend = ax[0].legend(loc='upper right', title = ratio_label)
+            # ax[0].add_artist(ratio_legend)
+
+            #ax[0].plot(0,0, label = r'$\alpha_{max}/y_{max} = $' + str(round(ratio,3)), linestyle = 'None')    
             ax[0].legend(loc= 'lower right')
-            #plt.tight_layout()
+
+            props = dict(boxstyle='round', facecolor='white', edgecolor = 'lightgrey', alpha=0.8)
+
+            # place a text box in upper left in axes coords
+            ax[0].text(0.2, 0.97, ratio_label, transform=ax[0].transAxes, verticalalignment='top', bbox=props)
+                    
         
         if self.savefig:
             plt.savefig(dest_mode_results + filename_for_save)
@@ -358,14 +388,14 @@ class Postprocess(object):
         plt.close()
 
     def plot_objective_function_3D(self,optimization_object, evaluation_space_x = [-4,4,0.1], evaluation_space_y = None,
-                                    include_opt_history = False, fig_label = '', filename_for_save ='0_no_name', add_3D_surf_plot = False):
+                                    include_opt_history = False, fig_label = '', filename_for_save ='0_no_name', add_3D_surf_plot = False, save_evaluation = True):
         '''
         deepcopy of the optimization is created to avoid undesired changes in the base objects of this class.
             evaluation_space[0,1]: space where the optimizable funciton shall be evaluated
             evaluation_space[2]: steps of evaluation in this space
             if space_y is not given the same space for x and y is used
         '''
-        print ('\n EVALUATE AND PLOT OBJECTIVE FUNCTION\n')
+        print ('\nEVALUATE AND PLOT OBJECTIVE FUNCTION...\n')
         print (filename_for_save + str(optimization_object.weights))
         optimization_obj_eval = copy.deepcopy(optimization_object)
         fig_title = 'objective_func_' + fig_label
@@ -375,7 +405,8 @@ class Postprocess(object):
             ax2 = fig.add_subplot(122, projection='3d')
         else:
             ax1 = fig.add_subplot(111)
-        ax1.set_title(r'objective function with weights: ' + r'${}$'.format(optimization_obj_eval.weights))
+        if not self.savefig or not self.savefig_latex:
+            ax1.set_title(r'objective function with weights: ' + r'${}$'.format(optimization_obj_eval.weights))
 
         objective_function = optimization_obj_eval.optimizable_function
 
@@ -401,6 +432,8 @@ class Postprocess(object):
 
                 z[i][j] = objective_function((x[i][j], y[i][j]))
 
+        if save_evaluation:
+            fname = os_join(*['objective_functions',utilities.join_whitespaced_string(filename_for_save) + str(optimization_obj_eval.weights[0])[-1:] + '.npy'])
 
         levels = np.linspace(0.1, 0.75, 2000)
 
@@ -415,11 +448,10 @@ class Postprocess(object):
                     linestyle = '-', color = 'grey', #linewidth= # line stuff
                     marker = 'o', mfc = 'grey', mec='k', ms = 3,  # marker stuff
                     label='iterations')
-            ax1.scatter(k_ya_hist[0],k_ga_hist[0], marker='o',c='g',edgecolors='k', s = 20,label='start',zorder=5)
-            ax1.scatter(k_ya_hist[-1],k_ga_hist[-1], marker='o',c='m',edgecolors='k', s= 20, label='end',zorder=5)
+            ax1.scatter(k_ya_hist[0],k_ga_hist[0], marker='o',c='lime',edgecolors='k', s = 20,label='start',zorder=5)
+            ax1.scatter(k_ya_hist[-1],k_ga_hist[-1], marker='o',c='red',edgecolors='k', s= 20, label='end',zorder=5)
 
-        cs_bar = fig.colorbar(cs,  shrink=0.5, aspect=20, ax = ax1)
-        cs_bar.add_lines(cs2)
+        
         
         if add_3D_surf_plot:
             surf = ax2.plot_surface(x,y,z,
@@ -440,14 +472,25 @@ class Postprocess(object):
 
         ax1.set_xlabel(r'$k_{ya}$')
         ax1.set_ylabel(r'$k_{ga}$')
-        cs_bar.ax.set_xlabel(r'$ f = (\mathbf{x})$')
+
+        ax1.set_xlim(-25,25)
+        #ax1.margins(x = -0.3)
+        ax1.set_ylim(-10,65)
+        self.set_ax_size(utilities.cm2inch(6), utilities.cm2inch(4), ax=ax1)
+
+        #cs_bar.ax.set_xlabel(r'$ f = (\mathbf{x})$')
+        cs_bar = fig.colorbar(cs,  shrink=0.5, aspect=20, ax = ax1, pad=0.001)
+        cs_bar.add_lines(cs2)
+        cs_bar.set_label(r'$ f = (\mathbf{x})$')
         ax1.grid( linestyle='--')
         ax1.legend()
 
         if self.savefig:
             plt.savefig(dest_objective_func + filename_for_save + str(optimization_obj_eval.weights[0])[-1:])
+            print ('\nsaved:',dest_objective_func + filename_for_save + str(optimization_obj_eval.weights[0])[-1:])
         if self.savefig_latex:
             plt.savefig(dest_latex + filename_for_save + str(optimization_obj_eval.weights[0])[-1:])
+            print ('\nsaved:',dest_latex + filename_for_save + str(optimization_obj_eval.weights[0])[-1:])
 
         if self.show_plots:
             plt.show()
@@ -458,7 +501,7 @@ class Postprocess(object):
 
     def plot_optimization_history(self, optimization_object, include_func, norm_with_start = True):
 
-        fig = plt.figure(num='opt_history', figsize=(cm2inch(7.3), cm2inch(4.8)))
+        fig = plt.figure(num='opt_history')#, figsize=(cm2inch(7.3), cm2inch(4.8))
 
         for key, val in optimization_object.optimization_history.items():
             if not include_func and key == 'func':
@@ -478,8 +521,10 @@ class Postprocess(object):
             plt.grid()
         plt.legend()
 
-        #if self.savefig:
-        plt.savefig(dest_mass + 'mass_inc')
+        if self.savefig:
+            plt.savefig(dest_mass + 'mass_inc_iter')
+        if self.savefig_latex:
+            plt.savefig(dest_latex + 'mass_inc_iter')
 
         if self.show_plots:
             plt.show()
@@ -555,7 +600,7 @@ class Postprocess(object):
 
 # # DYNAMIC ANALYSIS
 
-    def plot_dynamic_results(self, dynamic_analysis, dof_label, node_id, result_variable):
+    def plot_dynamic_results(self, dynamic_analysis, dof_label, node_id, result_variable, init_res = None, save_suffix = '', add_fft = False):
         ''' 
         dynamic_analyis: analysis object
         dof_label: label of dof to plot
@@ -564,43 +609,67 @@ class Postprocess(object):
         ''' 
         dest = 'output\\'
         dof = GD.dof_lables['3D'].index(dof_label) + (node_id * GD.n_dofs_node['3D'])
-
+        dof_for_fft = dof_label
         if result_variable == 'displacement':
             result_data = dynamic_analysis.solver.displacement[dof, :]
+            if init_res:
+                init_data = init_res.displacement[dof, :]
         elif result_variable == 'velocity':
             result_data = dynamic_analysis.solver.velocity[dof, :]
+            if init_res:
+                init_data = init_res.velocity[dof, :]
         elif result_variable == 'acceleration':
             result_data = dynamic_analysis.solver.acceleration[dof, :]
+            if init_res:
+                init_data = init_res.acceleration[dof, :]
         elif result_variable == 'action':
             result_data = dynamic_analysis.force[dof, :]
         elif result_variable == 'reaction':
             if dof in dynamic_analysis.structure_model.dofs_of_bc:# or dof in dynamic_analysis.structure_model.elastic_bc_dofs:
                 result_data = dynamic_analysis.solver.dynamic_reaction[dof, :]
             else:
-                print ('\nReplacing the selevted node by the ground node for reaction results')
+                print ('\nReplacing the selected node by the ground node for reaction results')
                 node_id = 0
                 dof = GD.dof_lables['3D'].index(dof_label)
                 result_data = dynamic_analysis.solver.dynamic_reaction[dof, :]
+            if init_res:
+                init_data = init_res.dynamic_reaction[dof, :]
+            dof_label = GD.direction_response_map[dof_label] 
 
         digits = 2
         mean = round(np.mean(result_data), digits)
         std = round(np.std(result_data), digits)
+        if init_res:
+            mean_init = round(np.mean(init_data), digits)
+            std_init = round(np.std(init_data), digits)
+
 
         plot_title = result_variable.capitalize() + ' at node ' + str(node_id) + ' in ' + dof_label + ' direction'
 
-        fig = plt.figure(num='dynamic_result', figsize=(5,2.2))
+        if not self.savefig or not self.savefig_latex:
+            title = 'dynamic result ' + save_suffix
+        else:
+            title = None
+        fig = plt.figure(num=title)#figsize=(5,2.2)
         ax = fig.add_subplot(111)
+        plt.title(plot_title + ' Vs Time ' + save_suffix)    # set title
         ax.set_xlabel('time [s]')
-        ax.set_ylabel(plot_title)
-        plt.grid()
-        plt.title(plot_title + ' Vs Time')    # set title
-        # plot undeformed
-        plt.plot(dynamic_analysis.array_time, result_data)
-        plt.hlines(mean, dynamic_analysis.array_time[0], dynamic_analysis.array_time[-1], label='mean', color = 'k')
-        plt.hlines(mean + std, dynamic_analysis.array_time[0], dynamic_analysis.array_time[-1], label='mean +/- std', color = 'k', linestyle= '--')
-        plt.hlines(mean - std, dynamic_analysis.array_time[0], dynamic_analysis.array_time[-1], color = 'k', linestyle= '--')
+        ax.set_ylabel(result_variable + ' magnitude')
+
+        ax.hlines(mean, dynamic_analysis.array_time[0], dynamic_analysis.array_time[-1], label='mean', color = 'k')
+        ax.hlines(mean + std, dynamic_analysis.array_time[0], dynamic_analysis.array_time[-1], label='mean +/- std', color = 'k', linestyle= '--')
+        ax.hlines(mean - std, dynamic_analysis.array_time[0], dynamic_analysis.array_time[-1], color = 'k', linestyle= '--')
+        
+        label2 = None
+        if init_res:
+            ax.plot(dynamic_analysis.array_time, init_data, linestyle = '--', label = 'uncoupled result', color = 'tab:orange')
+            label2 = 'coupled_result'
+
+        ax.plot(dynamic_analysis.array_time, result_data, label = label2)
+        
         ax.legend()
 
+        plt.grid()
         if self.savefig:
             plt.savefig(dest)
             plt.close()
@@ -608,8 +677,11 @@ class Postprocess(object):
         if self.show_plots:
             plt.show()
 
+        if add_fft:
+            self.plot_fft(dof_label=dof_for_fft, dynamic_analysis=dynamic_analysis, init_dyn_res = init_res)    
 
-    def plot_fft(self, dof_label, dynamic_analysis = None, given_series = None, sampling_freq = None):
+
+    def plot_fft(self, dof_label, dynamic_analysis = None, given_series = None, sampling_freq = None, init_dyn_res = None):
         ''' 
         either give it:
             - a dynamic analysis object or 
@@ -617,6 +689,7 @@ class Postprocess(object):
         
         dof_label: label of dof 
         ''' 
+        fig = plt.figure(num='frequency_domain_result')#, figsize=(5,3)
         is_type = 'action '
         if dynamic_analysis:
             sampling_freq = 1/dynamic_analysis.dt
@@ -625,14 +698,50 @@ class Postprocess(object):
             given_series = time_series
             is_type = 'reaction '
 
-        freq_half, series_fft = utilities.get_fft(given_series, sampling_freq)
+        label2 = None
+        if init_dyn_res:
+            sampling_freq_init = 1/init_dyn_res.dt
+            dof = GD.dof_lables['3D'].index(dof_label)
+            time_series_init = init_dyn_res.dynamic_reaction[dof, :]
+            freq_half_init, series_fft_init = utilities.get_fft(time_series_init, sampling_freq_init)
+            plt.plot(freq_half_init, series_fft_init, label = 'uncoupled result', linestyle = '--', color = 'tab:orange')
+            label2 = 'coupled result'
 
-        fig = plt.figure(num='frequency_domain_result', figsize=(5,3))
-        plt.plot(freq_half, series_fft)
+
+        freq_half, series_fft = utilities.get_fft(given_series, sampling_freq)
+        plt.plot(freq_half, series_fft, label = label2)
+
+    
         plt.xlim(0.01,0.8)
         plt.ylabel('|Amplitude|')
         plt.xlabel('frequency [Hz]')
         plt.title(is_type + GD.direction_response_map[dof_label] + ' in the frequency domain using FFT ')
         plt.grid(True)
+        plt.legend()
         plt.show()
 
+
+    def plot_compare_energies(self, values_dict):
+
+        fig = plt.figure(num='modal energy')
+        norm = 1/values_dict['uncoupled']
+        for i, val in enumerate(values_dict.items()):
+            plt.bar(i, val[1] * norm, label=val[0])
+            plt.text(i, val[1]*norm + 0.1,  str(val[1]*norm))
+
+        plt.legend()
+        plt.ylabel('sum of energy over time')
+        if self.show_plots:
+            plt.show()
+
+
+    def set_ax_size(self, w,h, ax=None):
+        """ w, h: width, height in inches """
+        #if not ax: ax=plt.gca()
+        l = ax.figure.subplotpars.left
+        r = ax.figure.subplotpars.right
+        t = ax.figure.subplotpars.top
+        b = ax.figure.subplotpars.bottom
+        figw = float(w)/(r-l)
+        figh = float(h)/(t-b)
+        ax.figure.set_size_inches(figw, figh)

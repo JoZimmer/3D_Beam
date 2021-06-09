@@ -4,23 +4,21 @@ def cm2inch(value):
     return value/2.54
 # global PLOT PARAMS
 plt.rcParams['text.latex.preamble']=[r"\usepackage{lmodern}"]
-#Options
-# paper size for a4 landscape
-# width = cm2inch(29.7)
-# height = cm2inch(21)
-#% width: 14.8cm or 7.3cm  or 4.8cm recommended for figures in separated rows
 
-def get_params(w=16, h=10):
+def get_params(width=16, height=10):
     ''' 
-    w: width of savefig in [cm]
-    h: height of savefig in [cm]
+    width of savefig in [cm]
+    height of savefig in [cm]
     
+    used dimensons:
+        eigenmode_results : 3 nebeneinander: w= 11 h = 7
+        eigenmode_results : 1 mit achse: w = 4 h = 7
+        iteration history : w = 6 h = 4
     paper size A4 landscape: 29.7, 21 [cm]
     recommended for figures in seperated rows:
         width: 14.8 or 7.3 or 4.8 [cm]
     '''
-    width = cm2inch(w) # 16
-    height = cm2inch(h) # 11
+    
     params = {
             # FIGURE
             # ***********************
@@ -31,8 +29,8 @@ def get_params(w=16, h=10):
             #'text.latex.unicode': True,
             'figure.titlesize': 8,
             'figure.figsize': (width, height),
-            'figure.dpi': 300, # for showing!!
-            #'figure.constrained_layout.use': True,
+            'figure.dpi': 80, # for showing!!
+            'figure.constrained_layout.use': True,
             # SUBPLOTS
             # ************************
             # USE with the suplot_tool() to check which settings work the best

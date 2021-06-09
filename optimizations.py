@@ -26,6 +26,8 @@ class Optimizations(object):
             self.consider_mode = optimization_parameters['consider_mode']
             self.method = optimization_parameters['method']
             self.weights = optimization_parameters['weights']
+        else:
+            self.opt_params = False
 
         self.final_design_variable = None
 
@@ -239,13 +241,13 @@ class Optimizations(object):
 
         self.opt_geometric_props['Iz'] = [min_res.x * iz_i for iz_i in initial_iz]
         if print_to_console:
-            print('INITIAL iz:', ', '.join([str(val) for val in initial_iz]))
+            print('  INITIAL iz:', ', '.join([str(val) for val in initial_iz]))
             print()
-            print('OPTIMIZED iz: ', ', '.join(
+            print('  OPTIMIZED iz: ', ', '.join(
                 [str(opt_iz_fctr * val) for val in initial_iz]))
             print()
-            print('FACTOR: ', opt_iz_fctr)
-            print ('Final Func:', min_res.fun)
+            print('  FACTOR: ', opt_iz_fctr)
+            print ('  Final Func:', min_res.fun)
             print()
 
     def bending_z_geometric_stiffness_objective_function(self, target_freq, target_mode, initial_iz, multiplier_fctr):
@@ -288,7 +290,7 @@ class Optimizations(object):
         # NOTE: some additional reduction factor so that ip gets changes less
 
         init_guess = (1.0, 1.0)
-
+        
         # NOTE: this seems not to be enough
         # bnds_it = (1/OptimizableStraightBeam.OPT_FCTR, OptimizableStraightBeam.OPT_FCTR)
         # bnds_ip = (1/OptimizableStraightBeam.OPT_FCTR, OptimizableStraightBeam.OPT_FCTR)
@@ -297,12 +299,17 @@ class Optimizations(object):
         bnds_it = (1/100, 10)
         bnds_ip = (1/11, 20)
 
+        if self.opt_params:
+            init_guess = self.opt_params['init_guess']
+            bnds_it = self.opt_params['bounds']
+            bnds_ip = self.opt_params['bounds']
+
         # NOTE: TNC, SLSQP, L-BFGS-B seems to work with bounds correctly, COBYLA not
         min_res = minimize(self.optimizable_function,
                                        init_guess,
                                        method='L-BFGS-B',
                                        bounds=(bnds_it, bnds_ip),
-                                       options={'disp':True})
+                                       options={'disp':False})
 
         # returning only one value!
         opt_fctr = min_res.x
@@ -451,13 +458,13 @@ class Optimizations(object):
         self.optimizable_function = partial(self.obj_func_eigen_vectorial_k_ya, self.consider_mode, eigenmodes_target_y, eigenmodes_target_a, eigenfreq_target, include_mass)
         self.optimization_history['func'].append(self.optimizable_function(init_guess))
         if not include_mass:
-            print ('not optimizing the mass entries')
+            print ('\nnot optimizing the mass entries, thus...')
             if len(bnds) != 2:
                 bnds = bnds[:2]
-                print ('\n  dropped the 3rd bound given')
+                print ('  ...dropping the 3rd bound given')
             if len(init_guess) != 2:
                 init_guess = init_guess[:2]
-                print ('  dropped the 3rd initial guess given\n')
+                print ('  ...dropping the 3rd initial guess given\n')
 
         # alternatively inequality constraints
         cnstrts = [{'type': 'ineq', 'fun': lambda x: 100 - x[0]},
