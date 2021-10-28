@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from os.path import join as os_join
 
 import scipy.optimize as spo
 from scipy.optimize import minimize, minimize_scalar
@@ -168,7 +169,9 @@ class Optimizations(object):
                                             initial_iy)
         init_guess = 1.0
 
-        bnds_iy = (0.001,100)  # (1/8,8)
+        upper_bnd = self.model.elements[0].Iz / self.model.elements[0].Iy
+
+        bnds_iy = (0.001, upper_bnd)#100)  # (1/8,8)
 
         # minimization_result = minimize(self.optimizable_function,
         #                                init_guess,
@@ -215,7 +218,7 @@ class Optimizations(object):
 
     def adjust_sway_z_stiffness_for_target_eigenfreq(self, target_freq, target_mode, print_to_console=False):
         '''
-        sway_z = schwingung in y richtung, um z Achse
+        sway_z = schwingung in y richtung, um z Achse,
         '''
         initial_iz = list(e.Iz for e in self.model.elements)
 
@@ -226,14 +229,18 @@ class Optimizations(object):
                                             initial_iz)
         initi_guess = 1.0
 
-        bnds_iz = spo.Bounds(0.001, 100)#(0.001, 100)  # (1/8,8)
+        # NOTE this is correct only for homogenous cross section along length
+
+        upper_bnd = self.model.elements[0].Iy / self.model.elements[0].Iz
+
+        bnds_iz = (0.001, upper_bnd)#(0.001, 100)  # (1/8,8)
 
         # minimization_result = minimize(self.optimizable_function,
         #                                initi_guess,
         #                                method ='L-BFGS-B',
         #                                bounds = bnds_iz)
 
-        min_res = minimize_scalar(self.optimizable_function, tol=1e-06)#, options={'disp':True})
+        min_res = minimize_scalar(self.optimizable_function, method='Bounded', tol=1e-06, bounds=bnds_iz)#, options={'disp':True})
 
         # returning only one value!
         #opt_iz_fctr = minimization_result.x
@@ -357,8 +364,9 @@ class Optimizations(object):
         self.optimizable_function = partial(self.obj_func_eigen_ya_stiffnes, self.consider_mode, 
                                             eigenmodes_target_y, eigenmodes_target_a, eigenfreq_target,
                                             which)
-
+        ids = ['kya','kga']
         bounds = None
+        #bounds = self.opt_params['bounds'][ids.index(which)]
         method_scalar = 'brent'
         #bounds = (0.001, 100)#,(0.001, 100))#,(0.001, 100))
         if bounds:
@@ -413,13 +421,16 @@ class Optimizations(object):
         return f
 
 
-    def eigen_vectorial_ya_opt(self):
+    def eigen_vectorial_ya_opt(self, target_to_use = 'custom'):
         '''
         optimizing the stiffness coupling entries
             K_ya
             K_ga
         and the mass coupling entries
             M_ya, M_yg (both with the same parameter )
+        target_to_use:
+            - 'custom': 0.9 times the initial lateral displacement & ratio alpha/disp = 0.012
+            - 'realistic': taking values from full 3D FE simulation of exccentirc building 
         ''' 
 
         include_mass = self.opt_params['include_mass']
@@ -446,9 +457,38 @@ class Optimizations(object):
         if self.model.parameters['params_k_ya'] != [0.0,0.0]:
             raise Exception('inital parameters of ya are not 0 - check if the targets are still sensible')
 
-        eigenmodes_target_y = self.model.eigenmodes['y'][self.consider_mode]*0.9
-        eigenmodes_target_a = np.linspace(0, eigenmodes_target_y[-1] * 0.012, eigenmodes_target_y.shape[0]) # 0.12 is the ratio of caarc tip a / tip y 1st mode
-        eigenfreq_target = self.model.eigenfrequencies[self.consider_mode]
+        if target_to_use == 'custom':
+            eigenmodes_target_y = self.model.eigenmodes['y'][self.consider_mode]*0.9
+            eigenmodes_target_a = np.linspace(0, eigenmodes_target_y[-1] * self.opt_params['ratio_a_y_tar'], eigenmodes_target_y.shape[0]) # 0.012 is the ratio of caarc tip a / tip y 1st mode
+            eigenfreq_target = self.model.eigenfrequencies[self.consider_mode]
+
+        elif target_to_use == 'realistic':
+            modi = np.load(os_join(*['inputs', 'EigenvectorsGid.npy']))
+            z_coords = np.load(os_join(*['inputs', 'z_coords_gid_45.npy']))
+            if self.model.nodal_coordinates['x0'].size == 46:
+                eigenmodes_target_y = modi[self.consider_mode][:,4]
+                eigenmodes_target_a = modi[self.consider_mode][:,2] # here the ratio is 0.00373
+            else:
+                modi_fitted = utils.get_eigenform_polyfit(modi[self.consider_mode], z_coords, self.model.nodal_coordinates['x0'], plot_compare=False)
+                eigenmodes_target_y = modi_fitted['eigenmodes']['y']
+                eigenmodes_target_a = -1*modi_fitted['eigenmodes']['a']
+            eigenfreq_target = self.opt_params['eigen_freqs_tar'] #self.model.eigenfrequencies[self.consider_mode]
+
+        elif target_to_use == 'semi_realistic':
+            ''' 
+            assumes a reduction of y displacement by a custom factor < 1
+            uses shape of a initial with a factor to get a-y tip ratio as specified 
+            -> reason see inital shapes uncoupled max normed: a has the typical torsion shape -> needs amplification
+            ''' 
+            ratio_a_y = self.opt_params['ratio_a_y_tar']
+            factor_y = self.opt_params['factor_y']
+            eigenmodes_target_y = self.model.eigenmodes['y'][self.consider_mode]*factor_y
+
+            a_factor = ratio_a_y * max(eigenmodes_target_y)/max(self.model.eigenmodes['a'][self.consider_mode])
+            eigenmodes_target_a = self.model.eigenmodes['a'][self.consider_mode] * a_factor
+
+            eigenfreq_target = self.opt_params['eigen_freqs_tar'] #self.model.eigenfrequencies[self.consider_mode]
+
 
 
         self.inital = {'y':self.model.eigenmodes['y'][self.consider_mode],'a':self.model.eigenmodes['a'][self.consider_mode]}

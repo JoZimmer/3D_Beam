@@ -6,6 +6,7 @@
     "configurations": [
 
 
+
         {
             "name": "Aktuelle Datei",
             "type": "python",
@@ -25,6 +26,13 @@
             "type": "python",
             "request": "launch",
             "program": "C:/Users/Johannes/Documents/TUM/5.MasterThesis/2D_Beam/tests.py",
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "run compare",
+            "type": "python",
+            "request": "launch",
+            "program": "C:/Users/Johannes/Documents/TUM/5.MasterThesis/2D_Beam/compare_coupled_uncoupled.py",
             "console": "integratedTerminal"
         }
     ]

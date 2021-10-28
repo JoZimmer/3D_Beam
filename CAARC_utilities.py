@@ -83,6 +83,8 @@ def get_CAARC_eigenform_polyfit (CAARC_eigenmodes, evaluate_at = None, degree = 
 
     return eigenmodes_fitted
 
+
+
 def get_m_eff(eigenmodes_dict, mode_id, main_direction_only, print_to_console):
     '''
     retruns the generalized mass and the participation factor of a mode 

@@ -79,7 +79,7 @@ class BernoulliElement(object):
         # ===========================
 
             k_aa = self.G * self.It / self.L 
-            k_ya = omega * 12.0 * self.E * self.I_param / self.L**3 # from eccentricity approach to have reasonable scales of start e * k_yy_11
+            k_ya = omega *  self.E * self.I_param / self.L**3 # from eccentricity approach to have reasonable scales of start e * k_yy_1112.0 *
 
             k_aa_11 = k_aa
             

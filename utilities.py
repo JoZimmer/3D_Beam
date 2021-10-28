@@ -1,6 +1,11 @@
 import numpy as np
 import json
 import os.path
+import matplotlib.pyplot as plt 
+from os.path import join as os_join
+from os.path import sep as os_sep
+import statistics_utilities as stats_utils
+
 
 caarc_freqs = [0.231, 0.429, 0.536]
 # VALUES COPIED WITH FULL MATRICIES CALCULATED
@@ -118,18 +123,81 @@ def analytic_eigenmode_shapes(beam_model):
 
     return w
 
+def get_eigenform_polyfit(modeshape_i, z_coords,  evaluate_at, degree = 5, plot_compare = False):
+    ''' 
+    - modeshape_i: all modal deformations als 2D array, each column belongs to one dof
+    - z_coords: the original floor levels from the 45 floor model
+    - evaluate_at: nodal coordiantes at whcih the fitted curve should be evaluated 
+                   -> this is returned
+    ''' 
+    eigenmodes_fitted = {} 
+    #CAARC_eigenmodes = self.structure_model.CAARC_eigenmodes
+    # returns the fitted polynomial and the discrete array of displacements
+    if not evaluate_at.any():
+        raise Exception('provied evaluation coordiantes of the eigenform')
+    else:
+        x = evaluate_at 
+
+    eigenmodes_fitted['storey_level'] = np.copy(x)
+    eigenmodes_fitted['eigenmodes'] = {}
+
+    dof_direction_map = {'y':4, 'z':3,'a':2}
+
+    for dof_label in ['y', 'z', 'a']:
+        y = modeshape_i[:, dof_direction_map[dof_label]]
+        current_polynomial = np.poly1d(np.polyfit(z_coords,y,degree))
+        values = []
+        for x_i in x:# evaluate the fitted eigenmode at certain intervals
+            values.append(current_polynomial(x_i))
+        if values[0] != 0.0:
+            values[0] = 0.0
+        eigenmodes_fitted['eigenmodes'][dof_label] = np.asarray(values)
+
+    if plot_compare:
+        fig, ax = plt.subplots(ncols=3, num='fitted compared')
+        for d_i, dof_label in enumerate(['y', 'z', 'a']):
+            ax[d_i].plot(modeshape_i[:, dof_direction_map[dof_label]], z_coords, label = 'origin ' + dof_label)
+            ax[d_i].plot(eigenmodes_fitted['eigenmodes'][dof_label], x, label = 'fitted ' + dof_label)
+            ax[d_i].legend()
+            ax[d_i].grid()
+
+        plt.show()
+
+    return eigenmodes_fitted
 
 def save_optimized_beam_parameters(opt_beam_model, fname):
-    new = 'optimized_parameters\\'+fname+'.json'
+    new = 'optimized_parameters'+os_sep+fname+'.json'
     if os.path.isfile(new):
         print('WARNING', new, 'already exists!')
-        new = 'optimized_parameters\\'+fname+'_1.json'
+        new = 'optimized_parameters'+os_sep+fname+'_1.json'
 
     f = open(new,'w')
     
     json.dump(opt_beam_model.parameters, f)
     f.close()
+    print('\nsaved:', new)
 
+def get_targets(beam_model, target='semi_realistic', opt_params =None):
+    ''' 
+    just used to have them especially for the initial comparison
+    ''' 
+    if target == 'realistic':
+        modi = np.load(os_join(*['inputs', 'EigenvectorsGid.npy']))
+        z_coords = np.load(os_join(*['inputs', 'z_coords_gid_45.npy']))
+        
+        modi_fitted = get_eigenform_polyfit(modi[0], z_coords, beam_model.nodal_coordinates['x0'], plot_compare=False)
+        eigenmodes_target_y = modi_fitted['eigenmodes']['y']
+        eigenmodes_target_a = -1*modi_fitted['eigenmodes']['a']
+
+    elif target == 'semi_realistic':
+        ratio_a_y = opt_params['ratio_a_y_tar']
+        factor_y = opt_params['factor_y']
+        eigenmodes_target_y = beam_model.eigenmodes['y'][0]*factor_y
+
+        a_factor = ratio_a_y * max(eigenmodes_target_y)/max(beam_model.eigenmodes['a'][0])
+        eigenmodes_target_a = beam_model.eigenmodes['a'][0] * a_factor
+
+    return {'y':eigenmodes_target_y, 'a':eigenmodes_target_a}
 
 def prepare_string_for_latex(string):
     greek = {'ya':'y'+r'\alpha','ga':r'\gamma' + r'\alpha'}
@@ -147,6 +215,7 @@ def join_whitespaced_string(string):
 
 # # DYNAMIC ANALYSIS
 def get_fft(given_series, sampling_freq):
+
     '''
     The function get_fft estimates the Fast Fourier transform of the given signal 
     sampling_freq = 1/dt
@@ -170,3 +239,39 @@ def get_fft(given_series, sampling_freq):
     series_fft = series_fft[:max_length-1]
     
     return freq_half, series_fft
+
+
+def extreme_value_analysis_nist(given_series, dt, response_label = None, type_of_return = 'estimate', P1 = 0.98):
+    ''' 
+    dynamic_analysi_solved: dynamic_analysis.solver object
+    response: label given as dof_label, if given as response label it is convertedd
+    type_of_return: wheter the estimated or the quantile value of P1 is returned (both are computed)
+    ''' 
+
+    T_series = dt * len(given_series)
+    dur_ratio = 600 / T_series
+    # # MAXMINEST NIST
+    #P1 = 0.98
+    max_qnt, min_qnt, max_est, min_est, max_std, min_std, Nupcross = stats_utils.maxmin_qnt_est(given_series	, 
+                                                                        cdf_p_max = P1 , cdf_p_min = 0.0001, cdf_qnt = P1, dur_ratio = dur_ratio)
+    
+    abs_max_est = max([abs(max_est[0][0]), abs(min_est[0][0])])
+    abs_max_qnt = max([abs(max_qnt[0]), abs(min_qnt[0])])
+
+    if type_of_return == 'estimate':
+        extreme_response = abs_max_est
+    elif type_of_return == 'quantile':
+        extreme_response = abs_max_qnt
+    
+    glob_max = max(abs(given_series))
+
+    # print ('\nEstimated absolute maximum of', response_label)
+    # print ('   ', round(abs_max_est/glob_max,2) , 'of the gobal maximum')
+    # print ('Estimated absolute quantile value of', response_label)
+    # print ('   ', round(abs_max_qnt/glob_max,2) , 'of the gobal maximum')
+    # print ('    Upcrossing rate of 100:', Nupcross/100)
+    # print ('    len series:', len(given_series))
+    # print ('    physical time:', len(given_series) * dt)
+
+    return abs_max_qnt, abs_max_est
+
