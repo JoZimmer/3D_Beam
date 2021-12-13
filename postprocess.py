@@ -19,7 +19,9 @@ rechts
 axes[0,-1].legend(bbox_to_anchor = (1.04, 1), loc ='upper left')
 '''
 
-AB = 'CAARC_A'#'CAARC_A' # 
+AB = 'CAARC_A'#'CAARC_A' # TODO this is important to set can only be done here so far 
+
+# destinations for saving the plots
 
 dest_mode_results = 'plots\\'+AB+'\\eigenmode_results\\'
 dest_objective_func = 'plots\\'+AB+'\\objective_function\\'
@@ -133,6 +135,27 @@ class Postprocess(object):
                             number_of_modes = 3, dofs_to_plot = ['y','z','a'], add_max_deform = True,
                             max_normed = True, do_rad_scale =False, include_caarc = False, use_caarc_fitted = False, caarc_A_only = False,
                             plot_weights_in_title = False, fig_title = '', filename_for_save = '0_no_name', show_legend = True):
+
+        ''' 
+        Plotting eigendmodes of a 3D model.
+            beam_model: a beam model object optimized or not 
+            model: 'A' or 'B' for setting some plot style options
+            opt_targets: the eigenmode target deformations dictionary with dofs or None
+            initial: initial eigenmode deformations dictionary with dofs or None
+            opt_params: the optimization_parameters dictionary -> can be used to shwo some information of the settings in the plot,
+            number_of_modes: ...to show 
+            dofs_to_plot: ...
+            add_max_deform: boolean -> printing the maximum deformations in a text box in the plot,
+            max_normed: boolean -> if deformation should be normed with theri respective maximum
+            do_rad_scale: boolean -> if the rotational deformations should be scaled (with dimensons from the model)
+            include_caarc: boolean -> wheter to include the eigenmodes of the original CAARC model 
+            use_caarc_fitted: boolean -> if include_caar wether to fit the mode shapes 
+            caarc_A_only: some plotting things,
+            plot_weights_in_title: boolean -> wheter to print the weights used in the optimization into the title
+            fig_title: give some titel name extension
+            filename_for_save: if saving the figure
+            show_legend: ...
+        ''' 
 
         norm, norm2, norm3, c_norm = 1, 1, 1 ,1
         rad_scale = np.sqrt(beam_model.parameters['cross_section_area'])
@@ -291,6 +314,18 @@ class Postprocess(object):
     def plot_eigenmodes_3D_compare(self, beam_model1, beam_model2, number_of_modes = 3, dofs_to_plot = ['y','a','z'], add_max_deform = True,
                             max_normed = True, do_rad_scale =False, filename_for_save = '0_no_name'):
 
+        ''' 
+        Compare the mode shapes of two different 3D beam models.
+            beam_model1: a beam model object UNcoupled
+            beam_model2: a beam model object Coupled after optimizations 
+            opt_targets: the eigenmode target deformations dictionary with dofs or None
+            number_of_modes: ...to show 
+            dofs_to_plot: ...
+            add_max_deform: boolean -> printing the maximum deformations in a text box in the plot,
+            max_normed: boolean -> if deformation should be normed with theri respective maximum
+            do_rad_scale: boolean -> if the rotational deformations should be scaled (with dimensons from the model)
+            filename_for_save: if saving the figure
+        ''' 
         dest = os_join(*['plots', 'CAARC_B','eigenmode_results'])
 
         norm1, norm2 = 1, 1

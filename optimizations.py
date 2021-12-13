@@ -30,11 +30,12 @@ class Optimizations(object):
         else:
             self.opt_params = False
 
-        self.final_design_variable = None
-
 # BENDING OPTIMIZATIONS
 
     def eigen_scalar_opt_yg(self):
+        ''' 
+        inital test proposals from MP
+        ''' 
         #k_full_target, m_full_target = build_system_matrix([1.0,1.0,1.0])
         f_init = self.model.eigenfrequencies[self.consider_mode].copy()
         mode_init = self.model.eigenmodes.copy()
@@ -77,7 +78,9 @@ class Optimizations(object):
     # # EIGENMODE AND FREQUENCY WITH 3 DESIGN VARIABLES YG
 
     def eigen_vectorial_opt(self):
-        
+        ''' 
+        inital test proposals from MP
+        ''' 
         eigenfrequencies_target =  utils.analytic_eigenfrequencies(self.model)
 
         if self.model.n_elems == 3:
@@ -155,6 +158,7 @@ class Optimizations(object):
         return f
 
 # FOR EIGENFREQUENCIES
+
     def adjust_sway_y_stiffness_for_target_eigenfreq(self, target_freq, target_mode, print_to_console=False):
         '''
         displacement in z direction -> sway_y = schwingung um y - Achse
@@ -349,12 +353,15 @@ class Optimizations(object):
     
     def eigen_ya_stiffness_opt(self, which = 'kya'):
         ''' 
+        Optimizes either 'kya' or 'kga' to couple the y-displacement (gamma-rotation) to the torsional twist.
+        The optimization target is hard coded in here -> see eigenmodes_target_*y*a
+        The eigenfrequnecy_target is mostly not used (uncomment it in the objective function to see what happens).
         which: 'kya' or 'kga'
         ''' 
         if self.model.parameters['params_k_ya'] != [0.0,0.0]:
             raise Exception('inital parameters of ya are not 0 - check if sensible')
 
-        eigenmodes_target_y = self.model.eigenmodes['y'][self.consider_mode]*0.9
+        eigenmodes_target_y = self.model.eigenmodes['y'][self.consider_mode]*0.9 # an assumption: y gets less if a is also deforming
         eigenmodes_target_a = np.linspace(0, eigenmodes_target_y[-1] * 0.012, eigenmodes_target_y.shape[0]) # 0.12 is the ratio of caarc tip a / tip y 1st mode
         eigenfreq_target = self.model.eigenfrequencies[self.consider_mode]
 
@@ -390,6 +397,10 @@ class Optimizations(object):
         print('\noptimization result for design variable k'+which+':', res_scalar.x)
 
     def obj_func_eigen_ya_stiffnes(self, mode_id, eigenmodes_target_y, eigenmodes_target_a, eigenfreq_target, which, design_param):
+        ''' 
+        Objective function for one design variable (either kya or kga). 
+        ''' 
+        
         if isinstance(design_param, np.ndarray):
             if design_param.size == 2:
                 if design_param[0] == design_param[1]:
@@ -416,21 +427,22 @@ class Optimizations(object):
 
         f = weights[0]*f1**2 + weights[1]*f2**2 # + weights[2] * f3**2
 
-        #print('F: ', str(f))
-
         return f
 
 
     def eigen_vectorial_ya_opt(self, target_to_use = 'custom'):
         '''
-        optimizing the stiffness coupling entries
+        optimizing both the stiffness coupling entries
             K_ya
             K_ga
         and the mass coupling entries
+            mostly mass couling is not necessary or sensible - see also Thesis JZ ch. 3.3.3
+            in optimization_parameters a boolean for turning this option on and off is used
             M_ya, M_yg (both with the same parameter )
         target_to_use:
-            - 'custom': 0.9 times the initial lateral displacement & ratio alpha/disp = 0.012
-            - 'realistic': taking values from full 3D FE simulation of exccentirc building 
+            - 'custom': 0.9 times the initial lateral displacement & ratio alpha/disp = 0.012; a displacement is assumed linear
+            - 'realistic': taking values from full 3D FE simulation of exccentirc building (ARiedls work)
+            - 'semi_realistic': uses values from the optimization_params: 'ratio_a_y_tar', 'factor_y'; a displacement is amplified -> original shape is taken
         ''' 
 
         include_mass = self.opt_params['include_mass']
@@ -444,6 +456,7 @@ class Optimizations(object):
         if include_mass:
             self.optimization_history['m_ya_ga'] = [init_guess[2]]
         def get_callback(x):
+            # not really working
             self.n_iter += 1
             #self.optimization_history['func'].append(self.optimizable_function(x))
             self.optimization_history['k_ya'].append(x[0])
@@ -465,6 +478,7 @@ class Optimizations(object):
         elif target_to_use == 'realistic':
             modi = np.load(os_join(*['inputs', 'EigenvectorsGid.npy']))
             z_coords = np.load(os_join(*['inputs', 'z_coords_gid_45.npy']))
+            # is only available with 45 nodes but is fitted if the current model has a different number of nodes
             if self.model.nodal_coordinates['x0'].size == 46:
                 eigenmodes_target_y = modi[self.consider_mode][:,4]
                 eigenmodes_target_a = modi[self.consider_mode][:,2] # here the ratio is 0.00373
@@ -526,6 +540,7 @@ class Optimizations(object):
         #print ('func with manual opt params: ', self.optimizable_function(evals))
 
         self.optimized_design_params = {'params_k_ya':res_scalar.x[:2]}
+
         if include_mass:
             self.optimized_design_params['params_m_ya'] = [res_scalar.x[-1],res_scalar.x[-1],0.0]
 
@@ -545,9 +560,11 @@ class Optimizations(object):
             print ('  m_ya:', round(res_scalar.x[2],digits+4), 'absolute m_ya_11:', round(self.model.comp_m[1][3]), 'absolute m_ya_12:', round(self.model.comp_m[1][9]))
 
     def obj_func_eigen_vectorial_k_ya(self, mode_id, eigenmodes_target_y, eigenmodes_target_a, eigenfreq_target, include_mass, design_params):
-        
+        ''' 
+        Objective function for more than one design variable (kya and kga optional mass entries).
+        ''' 
         if include_mass:
-            self.model.build_system_matricies(params_k_ya = design_params[:2], params_m_ya=[design_params[-1],design_params[-1],0])
+            self.model.build_system_matricies(params_k_ya = design_params[:2], params_m_ya=[design_params[-1], design_params[-1],0])
         else:
             self.model.build_system_matricies(params_k_ya = design_params)
 

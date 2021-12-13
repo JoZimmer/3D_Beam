@@ -67,9 +67,6 @@ class BeamModel(object):
                                                                         target_mode = 2,
                                                                         print_to_console=False)
 
-            # pst = Postprocess(False,False,False)
-            # pst.plot_objective_function_3D(self.init_opt,evaluation_space_x=[-55, 55, 0.5], evaluation_space_y=[-30, 80, 0.5])
-            # print ('\noptimized geometric properties')
 
             
 
