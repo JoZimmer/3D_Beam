@@ -7,9 +7,9 @@ from os.path import join as os_join
 from os.path import sep as os_sep
 from matplotlib.ticker import MultipleLocator, AutoMinorLocator
 
-from utilities import utilities as utils
-from utilities import global_definitions as GD
-from utilities import CAARC_utilities as caarc_utils
+from source.utilities import utilities as utils
+from source.utilities import global_definitions as GD
+from source.utilities import CAARC_utilities as caarc_utils
 
 '''
 Legenden Außerhalb

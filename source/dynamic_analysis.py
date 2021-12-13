@@ -1,9 +1,12 @@
 import numpy as np 
 import matplotlib.pyplot as plt 
 
-from utilities import global_definitions as GD 
-from utilities import utilities as utils
+from source.utilities import global_definitions as GD 
+from source.utilities import utilities as utils
 
+''' 
+This class is entirely copied from ParOptBeam
+''' 
 
 def transform_into_modal_coordinates(modal_transform_matrix, matrix, modes_considered):
     modal_transform_matrix_red = modal_transform_matrix[:,:modes_considered]
@@ -47,7 +50,6 @@ class DynamicAnalysis(object):
         force = np.load(self.parameters['input']['file_path'])
 
         self.force = force
-        # print("Force: ", len(force))
 
         # check dimensionality
         # of time and force

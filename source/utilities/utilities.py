@@ -4,7 +4,7 @@ import os.path
 import matplotlib.pyplot as plt 
 from os.path import join as os_join
 from os.path import sep as os_sep
-from utilities import statistics_utilities as stats_utils
+from source.utilities import statistics_utilities as stats_utils
 
 
 caarc_freqs = [0.231, 0.429, 0.536]

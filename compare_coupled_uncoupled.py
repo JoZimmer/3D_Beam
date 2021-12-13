@@ -9,9 +9,9 @@ import json
 from model import BeamModel
 from optimizations import Optimizations
 from postprocess import Postprocess
-import utilities
+from source.utilities import utilities
 from plot_settings import plot_settings
-from dynamic_analysis import DynamicAnalysis
+from source.dynamic_analysis import DynamicAnalysis
 from inputs import model_parameters
 
 plt.rcParams['text.latex.preamble']=[r"\usepackage{lmodern}"]

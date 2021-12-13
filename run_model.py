@@ -3,15 +3,28 @@ import matplotlib.pyplot as plt
 import copy
 from os.path import join as os_join
 
-from model import BeamModel
-from optimizations import Optimizations
-from postprocess import Postprocess
-from utilities import utilities as utils
+from source.model import BeamModel
+from source.optimizations import Optimizations
+from source.postprocess import Postprocess
+from source.utilities import utilities as utils
 from plot_settings import plot_settings
-from dynamic_analysis import DynamicAnalysis
+from source.dynamic_analysis import DynamicAnalysis
 from inputs import model_parameters
 '''
 coordinate system: x -> longitudinal axis, y -> perpendicular
+Description:
+A 3D Euler-Bernoulli Beam is extended to a torsion-bending coupled beam.
+This is done by adjusting severeal Material parameters and introducing a coupling term into the stiffness matrix. 
+3 Steps are done:
+   1. Material parameters are optimized such that target Eigenfrequencies are reached. 
+   2. The coupling paramters are optimized such the the eigen deformations are reached.
+   3. The Material parameters are readjusted such that the Eigenfreuqencies are reached again
+
+For the coupling optimization a target is required. Two different targets are implemented:
+   - target based on a reference Eigenvalue analysis of a coupled model including the Eigenfrequencies and eigen deformations 
+   - target based on the assumption that in a coupled case the bedning deformation is reduced by some factor whereas the torsional
+     deformation increases in the same mode
+
 '''
 plt.rcParams['text.latex.preamble']=[r"\usepackage{lmodern}"]
 

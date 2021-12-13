@@ -3,12 +3,11 @@ import matplotlib.pyplot as plt
 from scipy import linalg
 from scipy.optimize import minimize, minimize_scalar
 from functools import partial
-import warnings
 
-from bernoulli_element import BernoulliElement
-from utilities import utilities as utils
-from utilities import global_definitions as GD
-from postprocess import Postprocess
+from source.bernoulli_element import BernoulliElement
+from source.utilities import utilities as utils
+from source.utilities import global_definitions as GD
+from source.postprocess import Postprocess
 
 num_zero = 1e-15
 
@@ -38,14 +37,12 @@ class BeamModel(object):
                                     parameters['params_k_ya'], 
                                     parameters['params_m_ya'])
         
-        
-        self.working_params = [] # can be used to track some mathematical errors 
         self.eigenvalue_solve()
 
         self.optimize_frequencies_init = optimize_frequencies_init
         
         if self.optimize_frequencies_init:
-            from optimizations import Optimizations
+            from source.optimizations import Optimizations
 
             self.init_opt = Optimizations(self)
 
@@ -68,8 +65,6 @@ class BeamModel(object):
                                                                         print_to_console=False)
 
 
-            
-
 # # ELEMENT INITIALIZATION AND GLOBAL MATRIX ASSAMBLAGE
 
     def initialize_elements(self):
@@ -91,6 +86,7 @@ class BeamModel(object):
     def build_system_matricies(self, params_yg = [1.0,1.0,1.0], params_k_ya = [0.0,0.0], params_m_ya = [0.0,0.0,0.0]):
         ''' 
         assigns K_el and M_el to the object. BC is applied already
+        The coupling prameters are introduced
         params_yg:
             0: alpha - stiffness coupling yg
             1: beta1 - mass coupling yg1
@@ -109,8 +105,6 @@ class BeamModel(object):
         self.m = np.zeros((self.n_nodes * self.n_dofs_node,
                             self.n_nodes * self.n_dofs_node))
         
-        
-
         for element in self.elements:
 
             k_el = element.get_stiffness_matrix_var(alpha = params_yg[0], omega = params_k_ya[0], omega1 = params_k_ya[1])
@@ -200,24 +194,14 @@ class BeamModel(object):
         self.eigenmodes as a dictionary with the dof as key and list as values 
         list[i] -> mode id 
         '''
-        #self.eigen_values_raw, self.eigen_modes_raw = linalg.eigh(self.comp_k, self.comp_m)
         try:
             self.eigen_values_raw, self.eigen_modes_raw = linalg.eigh(self.comp_k, self.comp_m)
-            #self.working_params.append(self.opt_params_mass_ya)
         except np.linalg.LinAlgError:
-            #print ('Mass matrix is not positive definite for m_ya params:')
-            #print (self.opt_params_mass_ya)
-            #raise Exception('Linalg Error')
+            # Not handled since this error migh abort an optimization
             return 0
-
-        # if np.any(self.eigen_values_raw < 0):
-        #     odds = self.eigen_values_raw < 0.0
-        #     if len(self.eigen_values_raw[odds]) > 1:
-        #         print (self.eigen_values_raw[odds])
 
         self.eig_values = np.sqrt(np.real(self.eigen_values_raw))
         
-
         self.eigenfrequencies = self.eig_values / 2. / np.pi #rad/s
         self.eig_periods = 1 / self.eigenfrequencies
 
@@ -236,9 +220,6 @@ class BeamModel(object):
     
         if not is_identiy:
             return 0
-
-        # else:
-        #     self.working_params.append(self.opt_params_mass_ya)
 
         self.eigenmodes = {}
         for dof in self.dof_labels:
@@ -273,7 +254,6 @@ class BeamModel(object):
                     mean_load = np.apply_along_axis(np.mean, 1, dyn_load)[dir_id::GD.n_dofs_node['3D']]
                     load_vector[dir_id::GD.n_dofs_node['3D']] = mean_load
         else:
-            
             load_vector[self.load_id] = self.parameters['static_load_magnitude']
 
         self.static_deformation = {}
@@ -290,7 +270,7 @@ class BeamModel(object):
 
     def update_optimized_parameters(self, optimization_results = None):
         ''' 
-        NOTE: as it is implemented only a homogenous corss sections are updated 
+        NOTE: as it is implemented only a homogenous cross sections are updated 
         ''' 
 
         if self.optimize_frequencies_init:
@@ -312,6 +292,7 @@ class BeamModel(object):
 
         print('\nupdated optimized parameters')
         return self
+
 # # EXTRA FUNCTIONS
 
     def get_transformation_matrix(self,ey,ez):
@@ -319,6 +300,7 @@ class BeamModel(object):
         transform the element matrix from the shear center to the coordinate center (geometric center)
             ey: eccentricity in y direction -> coupling z displacement with torsion
             ez: eccentricity in z direction -> coupling y displacement with torsion
+        NOTE not used 
         '''
          
         # eigentlich auch noch ez, ey aus stockwerk oben drüber --> node 2

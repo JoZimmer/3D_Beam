@@ -6,11 +6,9 @@ import scipy.optimize as spo
 from scipy.optimize import minimize, minimize_scalar
 from scipy import linalg
 from functools import partial
-import postprocess
+import source.postprocess
 
-#import postprocess.plot_objective_function_2D 
-
-from utilities import utilities as utils 
+from source.utilities import utilities as utils 
 
 class Optimizations(object):
 

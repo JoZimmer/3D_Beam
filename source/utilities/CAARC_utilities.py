@@ -1,9 +1,9 @@
 import numpy as np
 from os.path import join as os_join
 import matplotlib.pyplot as plt 
-import postprocess as post
-from utilities import utilities as utils
-from utilities import global_definitions as GD
+import source.postprocess as post
+from source.utilities import utilities as utils
+from source.utilities import global_definitions as GD
 
 from plot_settings import plot_settings
 
