@@ -1,5 +1,5 @@
 import numpy as np 
-import global_definitions as GD
+from utilities import global_definitions as GD
 
 class BernoulliElement(object):
 

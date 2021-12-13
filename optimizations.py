@@ -10,7 +10,7 @@ import postprocess
 
 #import postprocess.plot_objective_function_2D 
 
-import utilities as utils 
+from utilities import utilities as utils 
 
 class Optimizations(object):
 

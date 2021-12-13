@@ -7,9 +7,9 @@ from os.path import join as os_join
 from os.path import sep as os_sep
 from matplotlib.ticker import MultipleLocator, AutoMinorLocator
 
-import utilities
-import global_definitions as GD
-import CAARC_utilities as caarc_utils
+from utilities import utilities as utils
+from utilities import global_definitions as GD
+from utilities import CAARC_utilities as caarc_utils
 
 '''
 Legenden Außerhalb
@@ -86,12 +86,12 @@ class Postprocess(object):
                 color = 'grey',
                 linestyle = '--')
 
-        f_j = utilities.analytic_eigenfrequencies(beam_model)
-        y_analytic = utilities.analytic_eigenmode_shapes(beam_model)
+        f_j = utils.analytic_eigenfrequencies(beam_model)
+        y_analytic = utils.analytic_eigenmode_shapes(beam_model)
 
         for i in range(number_of_modes):
             x = beam_model.nodal_coordinates['x0']
-            y = utilities.check_and_flip_sign_array(beam_model.eigenmodes['y'][i]) 
+            y = utils.check_and_flip_sign_array(beam_model.eigenmodes['y'][i]) 
             ax.plot(x,
                     y,
                     label = 'mode ' + str(i+1) + ' freq ' + str(round(beam_model.eigenfrequencies[i],3)),
@@ -99,7 +99,7 @@ class Postprocess(object):
                     color = COLORS[i])
 
             if analytic:
-                y = utilities.check_and_flip_sign_array(y_analytic[i])
+                y = utils.check_and_flip_sign_array(y_analytic[i])
                 ax.plot(x, y, 
                         label = 'mode ' + str(i+1) + ' analytic'+ ' freq ' + str(round(f_j[i],3)),
                         linestyle = ':',
@@ -114,7 +114,7 @@ class Postprocess(object):
                 #         label = 'fitted mode ' + str(i+1))
 
                 poly = np.poly1d(np.polyfit(x,y,8))
-                y_fitted = utilities.check_and_flip_sign_array(poly(x))
+                y_fitted = utils.check_and_flip_sign_array(poly(x))
                 ax.plot(x, y_fitted,
                         label = 'mode ' + str(i+1) + ' poly fitted',
                         linestyle = '-.',
@@ -208,9 +208,9 @@ class Postprocess(object):
                     else:
                         scale = 1.0
                     
-                y = utilities.check_and_flip_sign_array(beam_model.eigenmodes[dof][i])
+                y = utils.check_and_flip_sign_array(beam_model.eigenmodes[dof][i])
                 if include_caarc or caarc_A_only:
-                    c_y = utilities.check_and_flip_sign_array(c_modes[dof][i])
+                    c_y = utils.check_and_flip_sign_array(c_modes[dof][i])
 
                 if max_normed:
                     norm = 1/max(y)
@@ -283,7 +283,7 @@ class Postprocess(object):
                 ax[i].xaxis.set_label_coords(0.15, -0.1)
             ax[0].set_ylabel(r'height $[m]$') 
 
-        ratio = max(utilities.check_and_flip_sign_array(beam_model.eigenmodes['a'][0])) / max(utilities.check_and_flip_sign_array(beam_model.eigenmodes['y'][0]))
+        ratio = max(utils.check_and_flip_sign_array(beam_model.eigenmodes['a'][0])) / max(utils.check_and_flip_sign_array(beam_model.eigenmodes['y'][0]))
         ratio_label = r'$\alpha_{max}/y_{max} = $' + str(round(ratio,3))
 
         # ratio_legend = ax[0].legend(loc='upper right', title = ratio_label)
@@ -355,8 +355,8 @@ class Postprocess(object):
                     else:
                         scale = 1.0
 
-                y1 = utilities.check_and_flip_sign_array(beam_model1.eigenmodes[dof][0])
-                y2 = utilities.check_and_flip_sign_array(beam_model2.eigenmodes[dof][0])
+                y1 = utils.check_and_flip_sign_array(beam_model1.eigenmodes[dof][0])
+                y2 = utils.check_and_flip_sign_array(beam_model2.eigenmodes[dof][0])
 
                 if max_normed:
                     norm1 = 1/max(y1)
@@ -382,7 +382,7 @@ class Postprocess(object):
             #ax.set_yticklabels([])
             ax.set_ylabel(r'height $[m]$') 
 
-            ratio = max(utilities.check_and_flip_sign_array(beam_model1.eigenmodes['a'][0])) / max(utilities.check_and_flip_sign_array(beam_model1.eigenmodes['y'][0]))
+            ratio = max(utils.check_and_flip_sign_array(beam_model1.eigenmodes['a'][0])) / max(utils.check_and_flip_sign_array(beam_model1.eigenmodes['y'][0]))
             ratio_label = r'$\alpha_{max}/y_{max} = $' + str(round(ratio,3))
 
             ax.legend(loc= 'lower right')
@@ -417,8 +417,8 @@ class Postprocess(object):
                         else:
                             scale = 1.0
 
-                    y1 = utilities.check_and_flip_sign_array(beam_model1.eigenmodes[dof][i])
-                    y2 = utilities.check_and_flip_sign_array(beam_model2.eigenmodes[dof][i])
+                    y1 = utils.check_and_flip_sign_array(beam_model1.eigenmodes[dof][i])
+                    y2 = utils.check_and_flip_sign_array(beam_model2.eigenmodes[dof][i])
 
                     if abs(y2[-1]) > 1e-6:
 
@@ -448,7 +448,7 @@ class Postprocess(object):
                 ax[i].set_xlabel(r'$defl. \, [m] $')
                 ax[0].set_ylabel(r'height $[m]$') 
 
-            # ratio = max(utilities.check_and_flip_sign_array(beam_model1.eigenmodes['a'][0])) / max(utilities.check_and_flip_sign_array(beam_model1.eigenmodes['y'][0]))
+            # ratio = max(utils.check_and_flip_sign_array(beam_model1.eigenmodes['a'][0])) / max(utils.check_and_flip_sign_array(beam_model1.eigenmodes['y'][0]))
             # ratio_label = r'$\alpha_{max}/y_{max} = $' + str(round(ratio,3))
 
             ax[0].legend(loc= 'lower right')
@@ -553,11 +553,11 @@ class Postprocess(object):
                 z[i][j] = objective_function((x[i][j], y[i][j]))
 
         if save_evaluation:
-            fname = os_join(*['objective_functions',utilities.join_whitespaced_string(filename_for_save)+'x.npy'])
+            fname = os_join(*['objective_functions',utils.join_whitespaced_string(filename_for_save)+'x.npy'])
             np.save(fname, x)
-            fname = os_join(*['objective_functions',utilities.join_whitespaced_string(filename_for_save)+'y.npy'])
+            fname = os_join(*['objective_functions',utils.join_whitespaced_string(filename_for_save)+'y.npy'])
             np.save(fname, y)
-            fname = os_join(*['objective_functions',utilities.join_whitespaced_string(filename_for_save)+'z.npy'])
+            fname = os_join(*['objective_functions',utils.join_whitespaced_string(filename_for_save)+'z.npy'])
             np.save(fname, z)
 
         levels = np.linspace(0.1, 0.75, 2000)
@@ -601,7 +601,7 @@ class Postprocess(object):
         #ax1.set_xlim(-25,25)
         #ax1.margins(x = -0.3)
         #ax1.set_ylim(-10,65)
-        #self.set_ax_size(utilities.cm2inch(6), utilities.cm2inch(4), ax=ax1)
+        #self.set_ax_size(utils.cm2inch(6), utils.cm2inch(4), ax=ax1)
 
         #cs_bar.ax.set_xlabel(r'$ f = (\mathbf{x})$')
         cs_bar = fig.colorbar(cs,  shrink=0.5, aspect=20, ax = ax1, pad=0.001)
@@ -623,7 +623,6 @@ class Postprocess(object):
         
         del optimization_obj_eval
 
-
     def plot_optimization_history(self, optimization_object, include_func, norm_with_start = True):
 
         fig = plt.figure(num='opt_history')#, figsize=(cm2inch(7.3), cm2inch(4.8))
@@ -639,7 +638,7 @@ class Postprocess(object):
                 val_norm = [val_i - val[0] for val_i in val]
             else:
                 val_norm = val
-            plt.plot(np.arange(1,len(val)+1), val_norm, label=utilities.prepare_string_for_latex(key))
+            plt.plot(np.arange(1,len(val)+1), val_norm, label=utils.prepare_string_for_latex(key))
             plt.xlabel('Iteration')
             plt.xlim(left=1)
             plt.ylabel(r'$x - x_{start}$')
@@ -663,7 +662,7 @@ class Postprocess(object):
         fig, ax = plt.subplots()
 
         if beam_model.opt_params['optimization_target'] == 'static_tip_disp':
-            w_analytic = utilities.analytic_function_static_disp(beam_model.parameters, np.arange(0,beam_model.parameters['lx_total_beam']+1))
+            w_analytic = utils.analytic_function_static_disp(beam_model.parameters, np.arange(0,beam_model.parameters['lx_total_beam']+1))
             ax.plot(np.arange(0,len(w_analytic)),
                                 w_analytic,
                                 label = 'analytic',
@@ -672,7 +671,7 @@ class Postprocess(object):
                                 marker = 'o')
 
         elif beam_model.opt_params['optimization_target'] == 'frequency':
-            y = utilities.analytic_eigenmode_shapes(beam_model)[0]
+            y = utils.analytic_eigenmode_shapes(beam_model)[0]
             ax.plot(beam_model.nodal_coordinates['x0'],
                                 y,
                                 label = 'correct 1st mode',
@@ -745,7 +744,7 @@ class Postprocess(object):
 
         print ('\nStatic results:')
         if analytic:
-            w_analytic = utilities.analytic_function_static_disp(beam_model.parameters, np.arange(0,beam_model.parameters['lx_total_beam']+1))
+            w_analytic = utils.analytic_function_static_disp(beam_model.parameters, np.arange(0,beam_model.parameters['lx_total_beam']+1))
             ax.plot(w_analytic,
                     np.arange(0,len(w_analytic)),
                         label = 'analytic',
@@ -963,7 +962,7 @@ class Postprocess(object):
             f_3 = eig_freqs[:3]
             sampling_freq = 1/dynamic_analysis.dt
 
-            freq_half, series_fft = utilities.get_fft(result_data, sampling_freq)
+            freq_half, series_fft = utils.get_fft(result_data, sampling_freq)
             freq_half_un, series_fft_un = utilities.get_fft(init_data, sampling_freq)
 
             ax[1].plot(freq_half_un, series_fft_un, linewidth = 0.3, color='gray')
@@ -1234,8 +1233,6 @@ class Postprocess(object):
         if self.show_plots:
             plt.show()
 
-
-
     def plot_compare_energies(self, values_dict):
         dest = os_join(*['plots','CAARC_B', 'dynamic_results'])
         fig = plt.figure(num='modal energy')
@@ -1265,7 +1262,6 @@ class Postprocess(object):
         
         if self.show_plots:
             plt.show()
-
 
     def set_ax_size(self, w,h, ax=None):
         """ w, h: width, height in inches """

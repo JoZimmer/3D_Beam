@@ -4,7 +4,7 @@ import os.path
 import matplotlib.pyplot as plt 
 from os.path import join as os_join
 from os.path import sep as os_sep
-import statistics_utilities as stats_utils
+from utilities import statistics_utilities as stats_utils
 
 
 caarc_freqs = [0.231, 0.429, 0.536]
@@ -264,14 +264,6 @@ def extreme_value_analysis_nist(given_series, dt, response_label = None, type_of
         extreme_response = abs_max_qnt
     
     glob_max = max(abs(given_series))
-
-    # print ('\nEstimated absolute maximum of', response_label)
-    # print ('   ', round(abs_max_est/glob_max,2) , 'of the gobal maximum')
-    # print ('Estimated absolute quantile value of', response_label)
-    # print ('   ', round(abs_max_qnt/glob_max,2) , 'of the gobal maximum')
-    # print ('    Upcrossing rate of 100:', Nupcross/100)
-    # print ('    len series:', len(given_series))
-    # print ('    physical time:', len(given_series) * dt)
 
     return abs_max_qnt, abs_max_est
 

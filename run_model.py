@@ -6,7 +6,7 @@ from os.path import join as os_join
 from model import BeamModel
 from optimizations import Optimizations
 from postprocess import Postprocess
-import utilities
+from utilities import utilities as utils
 from plot_settings import plot_settings
 from dynamic_analysis import DynamicAnalysis
 from inputs import model_parameters
@@ -15,26 +15,26 @@ coordinate system: x -> longitudinal axis, y -> perpendicular
 '''
 plt.rcParams['text.latex.preamble']=[r"\usepackage{lmodern}"]
 
-width = utilities.cm2inch(5)
-height = utilities.cm2inch(8)
+width = utils.cm2inch(5)
+height = utils.cm2inch(8)
 
-mode = True
+latex = False
+savefig = False
 
-plot_params = plot_settings.get_params(width =width, height=height, usetex=mode, minor_ticks=False)
+plot_params = plot_settings.get_params(width =width, height=height, usetex=latex, minor_ticks=False)
 
-plt.rcParams.update({'axes.formatter.limits':(-3,3)}) 
 #plt.rcParams.update({'figure.figsize': (width, height)})
 plt.rcParams.update(plot_params)
 
 # # INITIALIZING A POSTPROCESSING OBJECT
-postprocess = Postprocess(show_plots = True, savefig = mode, savefig_latex = mode)
+postprocess = Postprocess(show_plots = True, savefig = savefig, savefig_latex = latex)
 
 if postprocess.savefig or postprocess.savefig_latex:
    print ('\n****** FIGURE SAVINGS ACTIVE in CAARC B ******\n')
 
 run_options = {
                   'use_optimized_params':False,
-                  'plot_inital':False, # with ajdusted frequencies
+                  'plot_inital':True, # with ajdusted frequencies
                   'plot_iteration':False,
                   'plot_coupled':True,
                   'plot_coupled_readjusted':False,
@@ -48,32 +48,9 @@ readjust = {'sway_z':True,'sway_y':False,'torsion':False}
 
 available_optimized = ['coupled_beam_A.json','coupled_beam_B.json']
 
-model = 'A'
+model = 'B'
 
 # # MODEL GEOMETRIC, MATERIAL AND ELEMENT PARAMETERS
-parameters = {  
-                'dimension': '3D',
-                'n_elements': 3,
-                'lx_total_beam': 240,#180.0, #
-                'material_density': 160,#150, 
-                'E_Modul': 286100000.0,#8750.0,
-                'nu': 0.1, #3D only
-                'damping_coeff': 0.025,
-                'nodes_per_elem': 2,
-                'cross_section_area': 72*24,#1350, 
-                'Iy': 746496.0,#105241.5,#1650.0,
-                'Iz': 82944.0,#141085.0,#1750.0, 
-                'I_param':100000.0, # used for the coupling eintries to make it independet of the others -> initialy in the scale of Iz or Iy
-                'It': 829440.0,#270281.1,#3400.0,
-                'modes_to_consider': 15,
-                'static_load_magnitude': -20.0,
-                'dynamic_load_file': os_join(*["inputs","dynamic_force_4_nodes.npy"]),
-                'inital_params_yg': [1.0,1.0,1.0],#[0.001,0.0012,0.0014]
-                'params_k_ya': [0,0],#[1.0, 1.0, 1.0, 1.0] # omega: stiffness coupling y - a omega1: y -g
-                'params_m_ya': [0.0,0.0,0.0],#[1.0, 1.0, 1.0] # omega: stiffness coupling, psi1, psi2: mass y-a, psi3: mass g-a
-                'eigen_freqs_tar': [0.231,0.429,0.536]
-             }
-
 if model == 'A':
    parameters = model_parameters.parameters_A
 elif model == 'B':
@@ -82,9 +59,6 @@ elif model == 'B':
 # CREATE AN INITAL BEAM
 beam = BeamModel(parameters, coupled=False, optimize_frequencies_init=True, use_translate_matrix=False)
 
-n_nodes = parameters['n_elements'] + 1
-parameters['dynamic_load_file'] = os_join(*['inputs','dynamic_force_'+str(int(n_nodes))+'_nodes.npy'])
-# ==============================================
 # Parameter read from json files
 using_optimized_params = False
 if run_options['use_optimized_params']:
@@ -136,27 +110,7 @@ if model == 'A':
 elif model == 'B':
    optimization_parameters = model_parameters.optimization_parameters_B
 
-# # DYNAMIC ANALYSIS
-analysis_parameters = { "settings": 
-                           {
-                           "solver_type": "Linear",
-                           "run_in_modal_coordinates": False,
-                           "time":{
-                                    "integration_scheme": "GenAlpha",
-                                    "start": 0.0,
-                                    "end": 600.0,
-                                    "step" : 0.02},
-                           "intial_conditions": {
-                                    "displacement": None,
-                                    "velocity": None,
-                                    "acceleration" : None}
-                           },
-                        "input": 
-                           {
-                           "file_path": parameters['dynamic_load_file']
-                           }
-                        }
-               
+# # DYNAMIC ANALYSIS               
 analysis_parameters = model_parameters.dynamic_analysis_parameters
 
 if run_options['dynamic_analysis'][0]:
@@ -178,7 +132,7 @@ if run_options['plot_inital']:
    postprocess.plot_eigenmodes_3D(beam, 
                                  number_of_modes = 3, 
                                  dofs_to_plot=['y','a','z'], 
-                                 opt_targets = None,#utilities.get_targets(beam, target= 'semi_realistic', opt_params=optimization_parameters),
+                                 opt_targets = None,#utils.get_targets(beam, target= 'semi_realistic', opt_params=optimization_parameters),
                                  add_max_deform=False,
                                  max_normed=False,
                                  do_rad_scale=True, 
@@ -244,14 +198,14 @@ if not using_optimized_params:
    if readjust['sway_z']: 
       opt_params_readjust = {'init_guess':[10,10], 'bounds':(0.001,100),'weights':None,'consider_mode':None,'method':None}
       freq_opt = Optimizations(model=coupled_beam, optimization_parameters=opt_params_readjust)
-      print ('   ...readjustinf stiffness for sway_z')
+      print ('   ...readjusting stiffness for sway_z')
       freq_opt.adjust_sway_z_stiffness_for_target_eigenfreq(parameters['eigen_freqs_tar'][0], 
                                                             target_mode = 0,
                                                             print_to_console=True)
    if readjust['sway_y']: 
       opt_params_readjust = {'init_guess':[10,10], 'bounds':(0.001,100),'weights':None,'consider_mode':None,'method':None}
       freq_opt_y = Optimizations(model=coupled_beam, optimization_parameters=opt_params_readjust)
-      print ('   ...readjustinf stiffness for sway_y')
+      print ('   ...readjusting stiffness for sway_y')
       freq_opt_y.adjust_sway_y_stiffness_for_target_eigenfreq(parameters['eigen_freqs_tar'][1], 
                                                             target_mode = 1,
                                                             print_to_console=True)
@@ -259,7 +213,7 @@ if not using_optimized_params:
    if readjust['torsion']:
       opt_params_readjust = {'init_guess':[10,10], 'bounds':(0.001,100),'weights':None,'consider_mode':None,'method':None}
       freq_opt_torsion = Optimizations(model=coupled_beam, optimization_parameters=opt_params_readjust)                                                     
-      print ('   ...readjustinf stiffness for sway_torsion')
+      print ('   ...readjusting stiffness for sway_torsion')
       freq_opt.adjust_torsional_stiffness_for_target_eigenfreq(parameters['eigen_freqs_tar'][2], 
                                                                target_mode = 2,
                                                                print_to_console=True)
@@ -302,6 +256,6 @@ if run_options['plot_coupled_readjusted']:
                                  filename_for_save= 'step3_eigenmodes_read')
 
 if run_options['save_optimized_parameters']:
-   utilities.save_optimized_beam_parameters(coupled_beam, fname='coupled_beam_B_y_z_a_readj')
+   utils.save_optimized_beam_parameters(coupled_beam, fname='coupled_beam_B_y_z_a_readj')
 
 

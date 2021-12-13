@@ -1,8 +1,8 @@
 import numpy as np 
 import matplotlib.pyplot as plt 
 
-import global_definitions as GD 
-import utilities as utils
+from utilities import global_definitions as GD 
+from utilities import utilities as utils
 
 
 def transform_into_modal_coordinates(modal_transform_matrix, matrix, modes_considered):

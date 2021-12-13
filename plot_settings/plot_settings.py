@@ -19,6 +19,9 @@ def get_params(width=16, height=10, usetex = False, minor_ticks = True):
     recommended for figures in seperated rows:
         width: 14.8 or 7.3 or 4.8 [cm]
     '''
+
+    #plt.rcParams.update({'axes.formatter.limits':(-3,3)}) 
+
     fsize = 10
     params = {
             # FIGURE

@@ -6,8 +6,8 @@ from functools import partial
 import warnings
 
 from bernoulli_element import BernoulliElement
-import utilities
-import global_definitions as GD
+from utilities import utilities as utils
+from utilities import global_definitions as GD
 from postprocess import Postprocess
 
 num_zero = 1e-15
@@ -251,7 +251,7 @@ class BeamModel(object):
                 dof_and_mode_specific = self.eigen_modes_raw[j:,i][::len(self.dof_labels)]
                 self.eigenmodes[dof][i][1:] = self.eigen_modes_raw[j:,i][::len(self.dof_labels)]
 
-        self.eigenmodes = utilities.check_and_flip_sign_dict(self.eigenmodes)
+        self.eigenmodes = utils.check_and_flip_sign_dict(self.eigenmodes)
 
         self.eig_freqs_sorted_indices = np.argsort(self.eigenfrequencies)
         
@@ -301,13 +301,13 @@ class BeamModel(object):
                 else:
                     init = self.parameters[param]
 
-                print ('    ',param, 'from', round(init), 'to',round(val[0]), 'increasing by:', utilities.increasing_by(init, val[0]), '%')
+                print ('    ',param, 'from', round(init), 'to',round(val[0]), 'increasing by:', utils.increasing_by(init, val[0]), '%')
                 self.parameters[param] = val[0]
                 
         if optimization_results:
             for param, val in optimization_results.items():
                 init = self.parameters[param]
-                print ('    ',param, 'from', init, 'to',val, '(k_ya, kga)')#, 'increasing by:', utilities.increasing_by(init, val[0]), '%')
+                print ('    ',param, 'from', init, 'to',val, '(k_ya, kga)')#, 'increasing by:', utils.increasing_by(init, val[0]), '%')
                 self.parameters[param] = list(val)
 
         print('\nupdated optimized parameters')

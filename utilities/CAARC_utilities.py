@@ -2,8 +2,8 @@ import numpy as np
 from os.path import join as os_join
 import matplotlib.pyplot as plt 
 import postprocess as post
-import utilities
-import global_definitions as GD
+from utilities import utilities as utils
+from utilities import global_definitions as GD
 
 from plot_settings import plot_settings
 
@@ -163,9 +163,9 @@ def plot_caarc_eigenmodes(caarc_dict,  number_of_modes = 3, dofs_to_plot = ['y',
                     scale = rad_scale
                 else:
                     scale = 1.0
-            y = utilities.check_and_flip_sign_array(beam_model.eigenmodes[dof][0])
+            y = utils.check_and_flip_sign_array(beam_model.eigenmodes[dof][0])
             if include_caarc:
-                c_y = utilities.check_and_flip_sign_array(c_modes[dof][0])
+                c_y = utils.check_and_flip_sign_array(c_modes[dof][0])
 
             if max_normed:
                 norm = 1/max(y)
@@ -205,7 +205,7 @@ def plot_caarc_eigenmodes(caarc_dict,  number_of_modes = 3, dofs_to_plot = ['y',
         ax.set_xlabel(r'$deflection$')
         ax.set_ylabel(r'$x \, [m]$') 
 
-        ratio = max(utilities.check_and_flip_sign_array(beam_model.eigenmodes['a'][0])) / max(utilities.check_and_flip_sign_array(beam_model.eigenmodes['y'][0]))
+        ratio = max(utils.check_and_flip_sign_array(beam_model.eigenmodes['a'][0])) / max(utils.check_and_flip_sign_array(beam_model.eigenmodes['y'][0]))
         ax.plot(0,0, label = r'$\alpha_{max}/y_{max}: $' + str(round(ratio,3)), linestyle = 'None')    
         ax.legend()
 
@@ -230,7 +230,7 @@ def plot_caarc_eigenmodes(caarc_dict,  number_of_modes = 3, dofs_to_plot = ['y',
                     else:
                         scale = 1.0
                     
-                y = utilities.check_and_flip_sign_array(c_modes[dof][i])
+                y = utils.check_and_flip_sign_array(c_modes[dof][i])
 
                 if max_normed:
                     c_norm = 1/max(y)
@@ -247,7 +247,7 @@ def plot_caarc_eigenmodes(caarc_dict,  number_of_modes = 3, dofs_to_plot = ['y',
             ax[i].set_xlabel(r'$deflection$')
             ax[0].set_ylabel(r'$x \, [m]$') 
 
-        ratio = max(utilities.check_and_flip_sign_array(caarc_dict['eigenmodes']['a'][0])) / max(utilities.check_and_flip_sign_array(caarc_dict['eigenmodes']['y'][0]))
+        ratio = max(utils.check_and_flip_sign_array(caarc_dict['eigenmodes']['a'][0])) / max(utils.check_and_flip_sign_array(caarc_dict['eigenmodes']['y'][0]))
         #ax[0].plot(0,0, label = r'$\alpha_{max}/y_{max} = $' + str(round(ratio,3)), linestyle = 'None')    
         ax[0].legend(loc= 'lower right')
         #plt.tight_layout()
