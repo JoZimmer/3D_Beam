@@ -21,7 +21,8 @@ optimization_variables = ['kya','kga','both']
 
 weights = [[0.33,0.33,.33],[0.5,0.5,0.],[.4,.4,.2],[.45,.45,.1],[.8,.1,.1],[.1,.8,.1],[.2,.4,.4],[0.1,0.1,0.8]]
 
-parameters_A = {  
+parameters = {'A':
+               {  
                 'dimension': '3D',
                 'n_elements': 10,
                 'lx_total_beam': 240,#180.0, #
@@ -39,31 +40,16 @@ parameters_A = {
                 'It': 829440.0,#270281.1,#3400.0,
                 'modes_to_consider': 15,
                 'static_load_magnitude': -20.0,
-                'dynamic_load_file': os_join(*["inputs","dynamic_force_11_nodes.npy"]),
+                'dynamic_load_file': os_join(*["inputs","forces","dynamic_force_11_nodes.npy"]),
                 'inital_params_yg': [1.0,1.0,1.0],#[0.001,0.0012,0.0014]
                 'params_k_ya': [0,0],#[1.0, 1.0, 1.0, 1.0] # omega: stiffness coupling y - a omega1: y -g
                 'params_m_ya': [0.0,0.0,0.0],#[1.0, 1.0, 1.0] # omega: stiffness coupling, psi1, psi2: mass y-a, psi3: mass g-a
                 'eigen_freqs_tar':[0.231,0.429,0.536],
                 'eigen_freqs_orig':[0.231,0.429,0.536],
                 
-             }
+             },
 
-optimization_parameters_A = {
-                            'eigen_freqs_tar': [0.231,0.429,0.536],# 'caarc_freqs_A'
-                            'ratio_a_y_tar': 0.012,
-                            'factor_y':0.9,
-                            'coupling_target':'custom',
-                            'consider_mode':0,
-                            'var_to_optimize' :optimization_variables[2],#'ya'#'ga' both
-                            'include_mass':False,
-                            'method': opt_methods[1],
-                            'init_guess':[0.,10.,0.0],#[-2.,5., 0.],#[0.1, 3] # k_ya, k_ga, m_cross
-                            'bounds':((0.01, 100),(0.01, 100),(.0000001, 100)), #NOTE m seems to be corrected down always 
-                            'weights':weights[0],
-                            'save_optimized_parameters':False
-                            }
-
-parameters_B = {  
+            'B':{  
                 'dimension': '3D',
                 'n_elements': 10,
                 'lx_total_beam': 180,
@@ -81,21 +67,37 @@ parameters_B = {
                 'It': 50000.0,#229062.0, #NOTE often set to Iy + Iz here diminsihed it by 100 000 such that the torsion optimization worked. 200 000 makes the coupling not worling 
                 'modes_to_consider': 15,
                 'static_load_magnitude': -20.0,
-                'dynamic_load_file': os_join(*["inputs","dynamic_force_11_nodes.npy"]),
+                'dynamic_load_file': os_join(*["inputs","forces","dynamic_force_11_nodes.npy"]),
                 'inital_params_yg': [1.0,1.0,1.0],#[0.001,0.0012,0.0014]
                 'params_k_ya': [0,0],#[1.0, 1.0, 1.0, 1.0] # omega: stiffness coupling y - a omega1: y -g
                 'params_m_ya': [0.0,0.0,0.0],#[1.0, 1.0, 1.0] # omega: stiffness coupling, psi1, psi2: mass y-a, psi3: mass g-a
                 'eigen_freqs_orig':[0.20,0.23,0.4], #[0.23,0.4,0.54]#
                 'eigen_freqs_tar':[0.2591, 0.3249, 1.3555],#[1.62822, 2.04137, 8.517]  
                  #Andi
-             }
-
-optimization_parameters_B = {
+             }}
+optimization_parameters = {'A':{
+                            'eigen_freqs_tar': [0.231,0.429,0.536],# 'caarc_freqs_A'
+                            'ratio_a_y_tar': 0.012,
+                            'factor_y':0.9,
+                            'coupling_target':'custom',
+                            'readjust':{'sway_z':True,'sway_y':False,'torsion':False},
+                            'consider_mode':0,
+                            'var_to_optimize' :optimization_variables[2],#'ya'#'ga' both
+                            'include_mass':False,
+                            'method': opt_methods[1],
+                            'init_guess':[0.,10.,0.0],#[-2.,5., 0.],#[0.1, 3] # k_ya, k_ga, m_cross
+                            'bounds':((0.01, 100),(0.01, 100),(.0000001, 100)), #NOTE m seems to be corrected down always 
+                            'weights':weights[0],
+                            'save_optimized_parameters':False
+                            },
+                            'B':
+                            {
                             'caarc_freqs_orig': [0.2,0.23,0.5], 
                             'eigen_freqs_tar':[0.2591, 0.3249, 1.3555],#[1.62822, 2.04137, 8.517],
                             'ratio_a_y_tar': 0.00372,#0.012,#
                             'factor_y':0.9,
                             'coupling_target':'semi_realistic', # custom, semi_realistic, realistic
+                            'readjust':{'sway_z':True,'sway_y':False,'torsion':False},
                             'consider_mode':0,
                             'var_to_optimize' :optimization_variables[2],#'ya'#'ga' both
                             'include_mass':False,
@@ -104,7 +106,7 @@ optimization_parameters_B = {
                             'bounds':((0.01, 100),(0.01, 100),(.0000001, 100)), #NOTE m seems to be corrected down always 
                             'weights':weights[1],
                             'save_optimized_parameters':False
-                            }
+                            }}
 
 dynamic_analysis_parameters = { "settings": 
                            {
@@ -122,6 +124,6 @@ dynamic_analysis_parameters = { "settings":
                            },
                         "input": 
                            {
-                           "file_path": os_join(*["inputs","dynamic_force_11_nodes.npy"])
+                           "file_path": os_join(*["inputs","forces","dynamic_force_11_nodes.npy"])
                            }
                         }

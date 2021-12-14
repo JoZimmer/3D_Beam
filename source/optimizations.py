@@ -28,134 +28,11 @@ class Optimizations(object):
         else:
             self.opt_params = False
 
-# BENDING OPTIMIZATIONS
-
-    def eigen_scalar_opt_yg(self):
-        ''' 
-        inital test proposals from MP
-        ''' 
-        #k_full_target, m_full_target = build_system_matrix([1.0,1.0,1.0])
-        f_init = self.model.eigenfrequencies[self.consider_mode].copy()
-        mode_init = self.model.eigenmodes.copy()
-
-        eigenfrequencies_target =  utils.analytic_eigenfrequencies(self.model)[self.consider_mode]
-        #eigenmodes_target = utils.check_and_flip_sign_array(utils.analytic_eigenmode_shapes(self.model)[self.consider_mode])
-
-        if self.model.n_elems == 3:
-            eigenmodes_target = utils.check_and_flip_sign_dict(utils.eigenmodes_target_2D_3_elems)
-            if self.model.parameters['lx_total_beam'] != 45:
-                raise Exception ('total Beam lenght must be 45 to match the copied target')
-        elif self.model.n_elems == 10:
-            eigenmodes_target = utils.check_and_flip_sign_dict(utils.eigenmodes_target_2D_10_elems)
-            if self.model.parameters['lx_total_beam'] != 150:
-                raise Exception ('total Beam lenght must be 150 to match the copied target')
-        else:
-            raise Exception('for eigen_scalar_opt only  targets for model with 3 or 10 elements are available')
-        
-        #mode_id = 0
-        self.optimizable_function = partial(self.obj_func_eig_scalar, self.consider_mode, eigenmodes_target)
-
-        res_scalar = minimize_scalar(self.optimizable_function, options={'gtol': 1e-6, 'disp': True})
-        print('optimization result:', res_scalar.x)
-
-    def obj_func_eig_scalar(self, mode_id, eigenmodes_target, design_param):
-
-        self.model.build_system_matricies(params_yg=[design_param, 1.0, 1.0])
-        self.model.eigenvalue_solve()
-
-        eigenmodes_cur = utils.check_and_flip_sign_dict(self.model.eigenmodes)
-
-        f1 = utils.evaluate_residual(eigenmodes_cur['y'][mode_id], eigenmodes_target['y'][mode_id])
-        f2 = utils.evaluate_residual(eigenmodes_cur['g'][mode_id], eigenmodes_target['g'][mode_id])
-        f = 0.67*f1**2 + 0.33*f2**2
-
-        print('F: ', str(f))
-
-        return f
-
-    # # EIGENMODE AND FREQUENCY WITH 3 DESIGN VARIABLES YG
-
-    def eigen_vectorial_opt(self):
-        ''' 
-        inital test proposals from MP
-        ''' 
-        eigenfrequencies_target =  utils.analytic_eigenfrequencies(self.model)
-
-        if self.model.n_elems == 3:
-            eigenmodes_target = utils.check_and_flip_sign_dict(utils.eigenmodes_target_2D_3_elems)
-            if self.model.parameters['lx_total_beam'] != 45:
-                raise Exception ('total Beam lenght must be 45 to match the copied target')
-        elif self.model.n_elems == 10:
-            eigenmodes_target = utils.check_and_flip_sign_dict(utils.eigenmodes_target_2D_10_elems)
-            if self.model.parameters['lx_total_beam'] != 150:
-                raise Exception ('total Beam lenght must be 150 to match the copied target')
-        else:
-            raise Exception('for eigen_scalar_opt only  targets for model with 3 or 10 elements are available')
-
-        self.optimizable_function = partial(self.obj_func_eigen_vectorial, self.consider_mode, eigenmodes_target, eigenfrequencies_target)
-
-        # defining bounds
-        bnds = ((0.001, 100),(0.001, 100),(0.001, 100))
-
-        # alternatively inequality constraints
-        cnstrts = [{'type': 'ineq', 'fun': lambda x: 100 - x[0]},
-                {'type': 'ineq', 'fun': lambda x: 100 - x[1]},
-                {'type': 'ineq', 'fun': lambda x: 100 - x[2]},
-                {'type': 'ineq', 'fun': lambda x: x[0] - 0.001},
-                {'type': 'ineq', 'fun': lambda x: x[1] - 0.001},
-                {'type': 'ineq', 'fun': lambda x: x[2] - 0.001}]
-
-        # SLSQP works with bounds
-        res_scalar = minimize(self.optimizable_function, [0.12, 0.15, 0.17], method='SLSQP', bounds=bnds, tol=1e-3, options={'gtol': 1e-3, 'ftol': 1e-3, 'disp': True})
-
-        # trust-constr runs, but not ideal
-        # res_scalar = minimize(self.optimizable_function, [0.12, 0.15, 0.17], method='trust-constr', bounds=bnds, tol=1e-3, options={'gtol': 1e-3, 'disp': True})
-
-        # Nelder-Mead, BFGS does not work
-        # res_scalar = minimize(self.optimizable_function, [0.12, 0.15, 0.17], method='Nelder-Mead', tol=1e-3, options={'gtol': 1e-3, 'ftol': 1e-3, 'disp': True})
-        # res_scalar = minimize(self.optimizable_function, [0.12, 0.15, 0.17], method='BFGS', tol=1e-3, options={'gtol': 1e-3, 'ftol': 1e-3, 'disp': True})
-
-        # TNC, L-BFGS-B, Powell does not work
-        # res_scalar = minimize(self.optimizable_function, [0.12, 0.15, 0.17], method='L-BFGS-B', bounds=bnds, tol=1e-2, options={'gtol': 1e-3, 'disp': True})
-
-        # COBYLA does not work
-        # res_scalar = minimize(self.optimizable_function, [0.12, 0.15, 0.17], method='COBYLA', constraints=cnstrts, tol=1e-2, options={'gtol': 1e-3, 'disp': True})
-
-        # SLSQP works with constraints as well
-        # res_scalar = minimize(self.optimizable_function, [0.12, 0.15, 0.17], method='SLSQP', constraints=cnstrts, tol=1e-3, options={'gtol': 1e-3, 'ftol': 1e-3, 'disp': True})
-
-        # trust-constr does not work
-        # res_scalar = minimize(self.optimizable_function, [0.12, 0.15, 0.17], method='trust-constr', constraints=cnstrts, tol=1e-3, options={'gtol': 1e-3, 'disp': True})
-
-    def obj_func_eigen_vectorial(self, mode_id, eigenmodes_target, eigenfrequencies_target, design_params):
-
-        self.model.build_system_matricies(design_params)
-        self.model.eigenvalue_solve()
-
-        eigenmodes_cur = self.model.eigenmodes
-        eigenfrequencies_cur = self.model.eigenfrequencies
-
-        f1 = utils.evaluate_residual(eigenmodes_cur['y'][mode_id], eigenmodes_target['y'][mode_id])
-        f2 = utils.evaluate_residual(eigenmodes_cur['g'][mode_id], eigenmodes_target['g'][mode_id])
-        f3 = utils.evaluate_residual([eigenfrequencies_cur[mode_id]], [eigenfrequencies_target[mode_id]])
-
-        # deformation and frequency relatively more important, than rotation
-        #weights = [0.4, 0.2, 0.4]
-
-        # deformation, rotation, frequency relatiive similar importance
-        weights = [0.33, 0.33, 0.33]
-
-        gamma = 2
-        components = [weights[0]*f1**gamma, weights[1]*f2**gamma, weights[2]*f3**gamma]
-        f = sum(components)
-
-        print('Design params: ', ', '.join([str(val) for val in design_params]))
-        print('Components: ', ', '.join([str(val) for val in components]))
-        print('Objective funtion: ', str(f))
-
-        return f
 
 # FOR EIGENFREQUENCIES
+    ''' 
+    These are functions taken from ParOptBeam
+    ''' 
 
     def adjust_sway_y_stiffness_for_target_eigenfreq(self, target_freq, target_mode, print_to_console=False):
         '''
@@ -347,11 +224,15 @@ class Optimizations(object):
 
         return (eig_freq_cur - target_freq)**2 *100# / target_freq**2
 
-# TORSION OPTIMIZATIONS
+# TORSION COUPLING OPTIMIZATIONS
+    ''' 
+    Coupling with one design variable.
+    Either y-a or g-a
+    ''' 
     
     def eigen_ya_stiffness_opt(self, which = 'kya'):
         ''' 
-        Optimizes either 'kya' or 'kga' to couple the y-displacement (gamma-rotation) to the torsional twist.
+        Optimizes EITHER 'kya' or 'kga' to couple the y-displacement (gamma-rotation) to the torsional twist.
         The optimization target is hard coded in here -> see eigenmodes_target_*y*a
         The eigenfrequnecy_target is mostly not used (uncomment it in the objective function to see what happens).
         which: 'kya' or 'kga'
@@ -427,10 +308,13 @@ class Optimizations(object):
 
         return f
 
-
+    ''' 
+    Coupling with two design variables.
+    Either y-a and g-a
+    ''' 
     def eigen_vectorial_ya_opt(self, target_to_use = 'custom'):
         '''
-        optimizing both the stiffness coupling entries
+        optimizing BOTH the stiffness coupling entries
             K_ya
             K_ga
         and the mass coupling entries
@@ -440,7 +324,7 @@ class Optimizations(object):
         target_to_use:
             - 'custom': 0.9 times the initial lateral displacement & ratio alpha/disp = 0.012; a displacement is assumed linear
             - 'realistic': taking values from full 3D FE simulation of exccentirc building (ARiedls work)
-            - 'semi_realistic': uses values from the optimization_params: 'ratio_a_y_tar', 'factor_y'; a displacement is amplified -> original shape is taken
+            - 'semi_realistic': uses values from the optimization_params: 'ratio_a_y_tar', 'factor_y'; a twist displacement is amplified -> original shape is taken
         ''' 
 
         include_mass = self.opt_params['include_mass']
@@ -474,8 +358,8 @@ class Optimizations(object):
             eigenfreq_target = self.model.eigenfrequencies[self.consider_mode]
 
         elif target_to_use == 'realistic':
-            modi = np.load(os_join(*['inputs', 'EigenvectorsGid.npy']))
-            z_coords = np.load(os_join(*['inputs', 'z_coords_gid_45.npy']))
+            modi = np.load(os_join(*['inputs', 'eigenvectors', 'EigenvectorsGid.npy']))
+            z_coords = np.load(os_join(*['inputs','eigenvectors', 'z_coords_gid_45.npy']))
             # is only available with 45 nodes but is fitted if the current model has a different number of nodes
             if self.model.nodal_coordinates['x0'].size == 46:
                 eigenmodes_target_y = modi[self.consider_mode][:,4]
@@ -542,14 +426,13 @@ class Optimizations(object):
         if include_mass:
             self.optimized_design_params['params_m_ya'] = [res_scalar.x[-1],res_scalar.x[-1],0.0]
 
-        #self.optimization_history['func'].append(self.optimizable_function(resx))
         self.optimization_history['k_ya'].append(res_scalar.x[0])
         self.optimization_history['k_ga'].append(res_scalar.x[1])
         self.optimization_history['iter'].append(self.n_iter+1)
 
         digits = 5
         # SLSQP works with constraints as well
-        #res_scalar = minimize(self.optimizable_function, x0 = init_guess, method='SLSQP', constraints=cnstrts, tol=1e-3, options={'gtol': 1e-3, 'ftol': 1e-3, 'disp': True})
+        # res_scalar = minimize(self.optimizable_function, x0 = init_guess, method='SLSQP', constraints=cnstrts, tol=1e-3, options={'gtol': 1e-3, 'ftol': 1e-3, 'disp': True})
         print()
         print('optimized parameters:')
         print ('  k_ya:', round(res_scalar.x[0],digits), 'absolute:', round(self.model.comp_k[1][3]))
@@ -581,14 +464,10 @@ class Optimizations(object):
         components = [weights[0]*f1**gamma, weights[1]*f2**gamma, weights[2]*f3**gamma]
         f = sum(components)
 
-        # print('Design params: ', ', '.join([str(val) for val in design_params]))
-        # print('Components: ', ', '.join([str(val) for val in components]))
-        # print('Objective function: ', str(f))
-
         return f
 
 
- # MASS MATRIX OPTIMIZATIONS
+# MASS MATRIX OPTIMIZATIONS
     
     def mass_entries_opt_ya(self):
 

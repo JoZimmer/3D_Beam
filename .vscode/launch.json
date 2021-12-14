@@ -18,21 +18,21 @@
             "name": "run model",
             "type": "python",
             "request": "launch",
-            "program": "C:/Users/Johannes/Documents/TUM/5.MasterThesis/2D_Beam/run_model.py",
+            "program": "C:/Users/Johannes/Documents/TUM/5.MasterThesis/3D_Beam/run_model.py",
             "console": "integratedTerminal"
         },
         {
             "name": "run tests",
             "type": "python",
             "request": "launch",
-            "program": "C:/Users/Johannes/Documents/TUM/5.MasterThesis/2D_Beam/tests.py",
+            "program": "C:/Users/Johannes/Documents/TUM/5.MasterThesis/3D_Beam/tests.py",
             "console": "integratedTerminal"
         },
         {
             "name": "run compare",
             "type": "python",
             "request": "launch",
-            "program": "C:/Users/Johannes/Documents/TUM/5.MasterThesis/2D_Beam/compare_coupled_uncoupled.py",
+            "program": "C:/Users/Johannes/Documents/TUM/5.MasterThesis/3D_Beam/compare_coupled_uncoupled.py",
             "console": "integratedTerminal"
         }
     ]

@@ -13,8 +13,6 @@ COLORS = ['tab:blue', 'tab:orange', 'tab:green', 'tab:red']
 
 
 dest_folder = 'plots_new\\CAARC'
-dest_latex = 'C:\\Users\\Johannes\\LRZ Sync+Share\\MasterThesis\\Abgabe\\Text\\images\\'
-
 
 def get_CAARC_properties(src_file_name = 'CAARC_advanced_eigenmodes.txt', evaluate_at = None, interpolation_degree = 3):
     '''
@@ -23,7 +21,7 @@ def get_CAARC_properties(src_file_name = 'CAARC_advanced_eigenmodes.txt', evalua
     the eigenmodes are appened to a list
     for each dof a list is created in a dictionary    
     '''
-    src = os_join(*['inputs', src_file_name])
+    src = os_join(*['inputs','eigenvectors', src_file_name])
     caarc = {}
     caarc['storey'] = np.flip(np.loadtxt(src, usecols = (0,))) # [-]
     caarc['storey_level'] = np.flip(np.loadtxt(src, usecols = (1,))) # [m]
@@ -127,9 +125,6 @@ def plot_caarc_eigenmodes(caarc_dict,  number_of_modes = 3, dofs_to_plot = ['y',
                             max_normed = False, do_rad_scale =False, use_caarc_fitted = False,
                             savefig = False, savefig_latex = False,
                             fig_title = '', filename_for_save = '0_no_name'):
-    
-    dest_folder = 'plots_new\\CAARC\\'
-    dest_latex = 'C:\\Users\\Johannes\\LRZ Sync+Share\\MasterThesis\\Abgabe\\Text\\images\\'
 
     c_norm = 1
     rad_scale = np.sqrt(caarc_dict['dimensons']['y'] *caarc_dict['dimensons']['z'])
@@ -252,12 +247,6 @@ def plot_caarc_eigenmodes(caarc_dict,  number_of_modes = 3, dofs_to_plot = ['y',
         ax[0].legend(loc= 'lower right')
         #plt.tight_layout()
     
-    if savefig:
-        plt.savefig(dest_folder + filename_for_save)
-        print ('\nsaved: ', dest_folder + filename_for_save)
-    if savefig_latex:
-        plt.savefig(dest_latex + filename_for_save)
-        print('\nsaved in LATEX folder:', dest_latex + filename_for_save)
     #if self.show_plots:
     #plt.grid()
     plt.show()

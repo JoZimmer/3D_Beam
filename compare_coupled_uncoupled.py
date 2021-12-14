@@ -6,9 +6,9 @@ import pickle as pkl
 from os.path import join as os_join
 import json
 
-from model import BeamModel
-from optimizations import Optimizations
-from postprocess import Postprocess
+from source.model import BeamModel
+from source.optimizations import Optimizations
+from source.postprocess import Postprocess
 from source.utilities import utilities
 from plot_settings import plot_settings
 from source.dynamic_analysis import DynamicAnalysis
@@ -19,7 +19,7 @@ plt.rcParams['text.latex.preamble']=[r"\usepackage{lmodern}"]
 width = utilities.cm2inch(6)
 height = utilities.cm2inch(5)
 
-mode = True #,1
+mode = False #,1
 pres = False
 
 plot_params = plot_settings.get_params(width =width, height=height, usetex=mode, minor_ticks=False)
@@ -47,7 +47,7 @@ parameters['dynamic_load_file'] = os_join(*['inputs','dynamic_force_'+str(int(n_
 
 
 # # CREATE THE UNCOUPLED BEAM
-beam = BeamModel(parameters, coupled=False, optimize_frequencies_init=True, use_translate_matrix=False)
+uncoupled_beam = BeamModel(parameters, coupled=False, optimize_frequencies_init=True, use_translate_matrix=False)
 
 # # CREATE THE COUPLED BEAM
 with open(os_join(*['optimized_parameters', 'coupled_beam_B.json']), 'r') as parameter_file:
@@ -59,21 +59,21 @@ if compare_options['eigenmodes']['do']:
     # figsize: w11, h8
     options = compare_options['eigenmodes']
     if not options['caarc_A_only']:
-        postprocess.plot_eigenmodes_3D_compare(beam, coupled_beam, number_of_modes = 3, dofs_to_plot = ['y','a','z'], 
+        postprocess.plot_eigenmodes_3D_compare(uncoupled_beam, coupled_beam, number_of_modes = 3, dofs_to_plot = ['y','a','z'], 
                                                 add_max_deform= options['add_max_val'], max_normed=options['max_norm'],
                                                 do_rad_scale =options['rad_scale'], filename_for_save = '0_no_name')
     else:
-        postprocess.plot_eigenmodes_3D(beam, number_of_modes = 3, dofs_to_plot = ['y','a','z'], show_legend=False,
+        postprocess.plot_eigenmodes_3D(uncoupled_beam, number_of_modes = 3, dofs_to_plot = ['y','a','z'], show_legend=False,
                                             add_max_deform= False, max_normed=False, caarc_A_only= options['caarc_A_only'],
                                             do_rad_scale = True, filename_for_save = 'eigenmodes_A')
 
 if compare_options['static_analysis']['do']:
     # w11 h7
     options = compare_options['static_analysis']
-    beam.static_analysis_solve(apply_mean_dynamic=True, directions=options['load_directions'])#all')
+    uncoupled_beam.static_analysis_solve(apply_mean_dynamic=True, directions=options['load_directions'])#all')
     coupled_beam.static_analysis_solve(apply_mean_dynamic=True, directions=options['load_directions'])#all')
 
-    postprocess.plot_static_result(coupled_beam, init_deform = beam.static_deformation,
+    postprocess.plot_static_result(coupled_beam, init_deform = uncoupled_beam.static_deformation,
                                     load_type='mean', dofs_to_plot=options['load_directions'],#
                                     do_rad_scale=True, save_suffix='a_y_couple_uncouple', presentation=pres)
 
@@ -82,7 +82,7 @@ if compare_options['dynamic_analysis']['do']:
     analysis_parameters = model_parameters.dynamic_analysis_parameters
 
     if not os.path.isfile(os_join(*['output','dynamic_analysis_11_nodes_uncoupled.pkl'])):
-        uncoupled_dynamic_analysis = DynamicAnalysis(beam, analysis_parameters)
+        uncoupled_dynamic_analysis = DynamicAnalysis(uncoupled_beam, analysis_parameters)
         uncoupled_dynamic_analysis.solve()
     else:
         with open(os_join(*['output','dynamic_analysis_11_nodes_uncoupled.pkl']), 'rb') as dyn_input:
