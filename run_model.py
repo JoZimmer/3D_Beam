@@ -40,17 +40,17 @@ plot_params = plot_settings.get_params(width =width, height=height, usetex=latex
 plt.rcParams.update(plot_params)
 
 
-run_options = {
-                  'use_optimized_params':False,
-                  'plot_inital':True, # with ajdusted frequencies
-                  'plot_iteration':False,
-                  'plot_coupled':True,
-                  'plot_coupled_readjusted':False,
-                  'plot_obj_func':False, 
-                  'dynamic_analysis':[False,'b','reaction'],
-                  'static_analysis':False,
-                  'save_optimized_parameters':False,
-                 }
+# run_options = {
+#                   'use_optimized_params':False,
+#                   'plot_inital':True, # with ajdusted frequencies
+#                   'plot_iteration':False,
+#                   'plot_coupled':True,
+#                   'plot_coupled_readjusted':False,
+#                   'plot_obj_func':False, 
+#                   'dynamic_analysis':[False,'b','reaction'],
+#                   'static_analysis':False,
+#                   'save_optimized_parameters':False,
+#                  }
 
 postprocess_parameters = {
                   'show_plots':True,
